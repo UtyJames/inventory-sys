@@ -34,9 +34,12 @@ interface ReportsClientProps {
     initialReports: any[];
     staff: any[];
     currentUser: any;
+    profitAnalysis?: any;
+    staffPerformance?: any;
+    inventoryReport?: any;
 }
 
-export function ReportsClient({ initialReports, staff, currentUser, profitAnalysis, staffPerformance, inventoryReport }: ReportsClientProps & { profitAnalysis?: any; staffPerformance?: any; inventoryReport?: any }) {
+export function ReportsClient({ initialReports, staff, currentUser, profitAnalysis, staffPerformance, inventoryReport }: ReportsClientProps) {
     const [activeTab, setActiveTab] = useState<"sales" | "stock" | "profit" | "staff" | "inventory">("sales");
     const [searchQuery, setSearchQuery] = useState("");
     const [selectedStaff, setSelectedStaff] = useState("all");
@@ -552,160 +555,163 @@ export function ReportsClient({ initialReports, staff, currentUser, profitAnalys
                                                 ))}
                                             </tbody>
                                         </table>
-                                                                        </div>
-                                ) : (
-                                    <div className="flex-1 flex items-center justify-center text-gray-400">No profit data available</div>
-                                )}
+                                    </div>
                                 </div>
-                                ) : activeTab === "staff" ? (
-                                <div className="flex-1 flex flex-col">
-                                    <div className="p-6 border-b border-gray-50">
-                                        <h3 className="text-lg font-black text-gray-900">Staff Performance Report</h3>
-                                        <p className="text-sm text-gray-400 mt-1">Individual staff member sales and profit metrics</p>
-                                    </div>
-                                    {staffPerformance ? (
-                                        <div className="flex-1 overflow-x-auto">
-                                            <div className="p-6 space-y-6">
-                                                {/* Staff Performance Chart */}
-                                                <div className="bg-white p-6 rounded-2xl border border-gray-200 print:hidden">
-                                                    <h4 className="text-lg font-black text-gray-900 mb-4">Staff Performance Comparison</h4>
-                                                    <StaffPerformanceChart data={staffPerformance.staffPerformance} />
-                                                </div>
-
-                                                {/* Staff Table */}
-                                                <thead>
-                                                    <tr className="bg-gray-50/50">
-                                                        <th className="px-6 py-4 text-xs font-black text-gray-400 uppercase tracking-widest">Staff Member</th>
-                                                        <th className="px-6 py-4 text-xs font-black text-gray-400 uppercase tracking-widest">Orders</th>
-                                                        <th className="px-6 py-4 text-xs font-black text-gray-400 uppercase tracking-widest">Total Revenue</th>
-                                                        <th className="px-6 py-4 text-xs font-black text-gray-400 uppercase tracking-widest">Total Profit</th>
-                                                        <th className="px-6 py-4 text-xs font-black text-gray-400 uppercase tracking-widest">Avg Order Value</th>
-                                                    </tr>
-                                                </thead>
-                                                <tbody className="divide-y divide-gray-50">
-                                                    {staffPerformance.staffPerformance.map((staff: any) => (
-                                                        <tr key={staff.name} className="hover:bg-gray-50/20">
-                                                            <td className="px-6 py-4 font-bold text-gray-900">{staff.name}</td>
-                                                            <td className="px-6 py-4 text-sm font-bold text-gray-600">{staff.orderCount}</td>
-                                                            <td className="px-6 py-4 text-sm font-black text-brand-600">{formatNaira(staff.revenue)}</td>
-                                                            <td className="px-6 py-4 text-sm font-black text-emerald-600">{formatNaira(staff.profit)}</td>
-                                                            <td className="px-6 py-4 text-sm font-bold text-gray-600">₦{staff.avgOrderValue}</td>
-                                                        </tr>
-                                                    ))}
-                                                </tbody>
-                                            </table>
-                                        </div>
-                                    </div>
-                                ) : (
-                                <div className="flex-1 flex items-center justify-center text-gray-400">No staff data available</div>
-                        )}
-                            </div>
-                        ) : activeTab === "inventory" ? (
-                            <div className="flex-1 flex flex-col">
-                                <div className="p-6 border-b border-gray-50">
-                                    <h3 className="text-lg font-black text-gray-900">Inventory Report</h3>
-                                    <p className="text-sm text-gray-400 mt-1">Current stock levels and inventory valuation</p>
-                                </div>
-                                {inventoryReport ? (
-                                    <div className="flex-1 overflow-x-auto">
-                                        <div className="p-6">
-                                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-                                                <AnalyticCard
-                                                    title="Total Items"
-                                                    value={inventoryReport.summary.totalItems}
-                                                    icon={Package}
-                                                    color="bg-blue-500"
-                                                    subtitle="SKU count"
-                                                />
-                                                <AnalyticCard
-                                                    title="Inventory Value"
-                                                    value={formatNaira(inventoryReport.summary.totalValue)}
-                                                    icon={Banknote}
-                                                    color="bg-brand-500"
-                                                    subtitle="Total cost value"
-                                                />
-                                                <AnalyticCard
-                                                    title="Low Stock Items"
-                                                    value={inventoryReport.summary.lowStockCount}
-                                                    icon={AlertTriangle}
-                                                    color="bg-orange-500"
-                                                    subtitle="Need replenishment"
-                                                />
-                                            </div>
-                                            <table className="w-full text-left">
-                                                <thead>
-                                                    <tr className="bg-gray-50/50">
-                                                        <th className="px-6 py-4 text-xs font-black text-gray-400 uppercase tracking-widest">Product</th>
-                                                        <th className="px-6 py-4 text-xs font-black text-gray-400 uppercase tracking-widest">SKU</th>
-                                                        <th className="px-6 py-4 text-xs font-black text-gray-400 uppercase tracking-widest">Category</th>
-                                                        <th className="px-6 py-4 text-xs font-black text-gray-400 uppercase tracking-widest">Current Stock</th>
-                                                        <th className="px-6 py-4 text-xs font-black text-gray-400 uppercase tracking-widest">Value</th>
-                                                        <th className="px-6 py-4 text-xs font-black text-gray-400 uppercase tracking-widest">Status</th>
-                                                    </tr>
-                                                </thead>
-                                                <tbody className="divide-y divide-gray-50">
-                                                    {inventoryReport.items.map((item: any) => (
-                                                        <tr key={item.id} className="hover:bg-gray-50/20">
-                                                            <td className="px-6 py-4 font-bold text-gray-900">{item.name}</td>
-                                                            <td className="px-6 py-4 text-sm font-bold text-gray-600">{item.sku || "N/A"}</td>
-                                                            <td className="px-6 py-4 text-sm font-bold text-gray-600">{item.category}</td>
-                                                            <td className="px-6 py-4 text-sm font-bold text-gray-600">{item.currentStock} {item.stockUnit || 'units'}</td>
-                                                            <td className="px-6 py-4 text-sm font-black text-brand-600">{formatNaira(item.value)}</td>
-                                                            <td className="px-6 py-4">
-                                                                <span className={cn("inline-block px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest", item.status === "Low" ? "text-orange-600 bg-orange-50" : "text-green-600 bg-green-50")}>
-                                                                    {item.status}
-                                                                </span>
-                                                            </td>
-                                                        </tr>
-                                                    ))}
-                                                </tbody>
-                                            </table>
-                                        </div>
-                                    </div>
-                                ) : (
-                                    <div className="flex-1 flex items-center justify-center text-gray-400">No inventory data available</div>
-                                )}
                             </div>
                         ) : (
-                            <div className="flex-1 flex flex-col items-center justify-center p-12 text-center h-[500px]">
-                                <div className="w-20 h-20 bg-brand-50 rounded-full flex items-center justify-center mb-6">
-                                    <Package className="w-10 h-10 text-brand-500" />
-                                </div>
-                                <h2 className="text-2xl font-black text-gray-900 mb-2">Inventory Audit Trail</h2>
-                                <p className="text-gray-500 max-w-sm font-medium">
-                                    Starting from now, all stock updates, additions, and sales removals will be logged here with timestamps and staff ID.
-                                </p>
-                                <Button className="mt-8 rounded-2xl h-12 px-8 font-black bg-gray-900 text-white shadow-xl hover:bg-gray-800">
-                                    Configure Audit Logs
-                                </Button>
-                            </div>
+                            <div className="flex-1 flex items-center justify-center text-gray-400">No profit data available</div>
                         )}
                     </div>
+                ) : activeTab === "staff" ? (
+                    <div className="flex-1 flex flex-col">
+                        <div className="p-6 border-b border-gray-50">
+                            <h3 className="text-lg font-black text-gray-900">Staff Performance Report</h3>
+                            <p className="text-sm text-gray-400 mt-1">Individual staff member sales and profit metrics</p>
+                        </div>
+                        {staffPerformance ? (
+                            <div className="flex-1 overflow-x-auto">
+                                <div className="p-6 space-y-6">
+                                    {/* Staff Performance Chart */}
+                                    <div className="bg-white p-6 rounded-2xl border border-gray-200 print:hidden">
+                                        <h4 className="text-lg font-black text-gray-900 mb-4">Staff Performance Comparison</h4>
+                                        <StaffPerformanceChart data={staffPerformance.staffPerformance} />
+                                    </div>
+
+                                    {/* Staff Table */}
+                                    <table className="w-full">
+                                        <thead>
+                                            <tr className="bg-gray-50/50">
+                                                <th className="px-6 py-4 text-xs font-black text-gray-400 uppercase tracking-widest">Staff Member</th>
+                                                <th className="px-6 py-4 text-xs font-black text-gray-400 uppercase tracking-widest">Orders</th>
+                                                <th className="px-6 py-4 text-xs font-black text-gray-400 uppercase tracking-widest">Total Revenue</th>
+                                                <th className="px-6 py-4 text-xs font-black text-gray-400 uppercase tracking-widest">Total Profit</th>
+                                                <th className="px-6 py-4 text-xs font-black text-gray-400 uppercase tracking-widest">Avg Order Value</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-gray-50">
+                                            {staffPerformance.staffPerformance.map((staff: any) => (
+                                                <tr key={staff.name} className="hover:bg-gray-50/20">
+                                                    <td className="px-6 py-4 font-bold text-gray-900">{staff.name}</td>
+                                                    <td className="px-6 py-4 text-sm font-bold text-gray-600">{staff.orderCount}</td>
+                                                    <td className="px-6 py-4 text-sm font-black text-brand-600">{formatNaira(staff.revenue)}</td>
+                                                    <td className="px-6 py-4 text-sm font-black text-emerald-600">{formatNaira(staff.profit)}</td>
+                                                    <td className="px-6 py-4 text-sm font-bold text-gray-600">₦{staff.avgOrderValue}</td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        ) : (
+                            <div className="flex-1 flex items-center justify-center text-gray-400">No staff data available</div>
+                        )}
+                    </div>
+                ) : activeTab === "inventory" ? (
+                    <div className="flex-1 flex flex-col">
+                        <div className="p-6 border-b border-gray-50">
+                            <h3 className="text-lg font-black text-gray-900">Inventory Report</h3>
+                            <p className="text-sm text-gray-400 mt-1">Current stock levels and inventory valuation</p>
+                        </div>
+                        {inventoryReport ? (
+                            <div className="flex-1 overflow-x-auto">
+                                <div className="p-6">
+                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                                        <AnalyticCard
+                                            title="Total Items"
+                                            value={inventoryReport.summary.totalItems}
+                                            icon={Package}
+                                            color="bg-blue-500"
+                                            subtitle="SKU count"
+                                        />
+                                        <AnalyticCard
+                                            title="Inventory Value"
+                                            value={formatNaira(inventoryReport.summary.totalValue)}
+                                            icon={Banknote}
+                                            color="bg-brand-500"
+                                            subtitle="Total cost value"
+                                        />
+                                        <AnalyticCard
+                                            title="Low Stock Items"
+                                            value={inventoryReport.summary.lowStockCount}
+                                            icon={AlertTriangle}
+                                            color="bg-orange-500"
+                                            subtitle="Need replenishment"
+                                        />
+                                    </div>
+                                    <table className="w-full text-left">
+                                        <thead>
+                                            <tr className="bg-gray-50/50">
+                                                <th className="px-6 py-4 text-xs font-black text-gray-400 uppercase tracking-widest">Product</th>
+                                                <th className="px-6 py-4 text-xs font-black text-gray-400 uppercase tracking-widest">SKU</th>
+                                                <th className="px-6 py-4 text-xs font-black text-gray-400 uppercase tracking-widest">Category</th>
+                                                <th className="px-6 py-4 text-xs font-black text-gray-400 uppercase tracking-widest">Current Stock</th>
+                                                <th className="px-6 py-4 text-xs font-black text-gray-400 uppercase tracking-widest">Value</th>
+                                                <th className="px-6 py-4 text-xs font-black text-gray-400 uppercase tracking-widest">Status</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody className="divide-y divide-gray-50">
+                                            {inventoryReport.items.map((item: any) => (
+                                                <tr key={item.id} className="hover:bg-gray-50/20">
+                                                    <td className="px-6 py-4 font-bold text-gray-900">{item.name}</td>
+                                                    <td className="px-6 py-4 text-sm font-bold text-gray-600">{item.sku || "N/A"}</td>
+                                                    <td className="px-6 py-4 text-sm font-bold text-gray-600">{item.category}</td>
+                                                    <td className="px-6 py-4 text-sm font-bold text-gray-600">{item.currentStock} {item.stockUnit || 'units'}</td>
+                                                    <td className="px-6 py-4 text-sm font-black text-brand-600">{formatNaira(item.value)}</td>
+                                                    <td className="px-6 py-4">
+                                                        <span className={cn("inline-block px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-widest", item.status === "Low" ? "text-orange-600 bg-orange-50" : "text-green-600 bg-green-50")}>
+                                                            {item.status}
+                                                        </span>
+                                                    </td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        ) : (
+                            <div className="flex-1 flex items-center justify-center text-gray-400">No inventory data available</div>
+                        )}
+                    </div>
+                ) : (
+                    <div className="flex-1 flex flex-col items-center justify-center p-12 text-center h-[500px]">
+                        <div className="w-20 h-20 bg-brand-50 rounded-full flex items-center justify-center mb-6">
+                            <Package className="w-10 h-10 text-brand-500" />
+                        </div>
+                        <h2 className="text-2xl font-black text-gray-900 mb-2">Inventory Audit Trail</h2>
+                        <p className="text-gray-500 max-w-sm font-medium">
+                            Starting from now, all stock updates, additions, and sales removals will be logged here with timestamps and staff ID.
+                        </p>
+                        <Button className="mt-8 rounded-2xl h-12 px-8 font-black bg-gray-900 text-white shadow-xl hover:bg-gray-800">
+                            Configure Audit Logs
+                        </Button>
+                    </div>
+                )}
+            </div>
 
             {/* Receipt Printer Modal */}
-                <ReceiptPrinter
-                    isOpen={showReceiptPrinter}
-                    onClose={() => setShowReceiptPrinter(false)}
-                    order={selectedReceipt}
-                />
-            </div>
-            );
+            <ReceiptPrinter
+                isOpen={showReceiptPrinter}
+                onClose={() => setShowReceiptPrinter(false)}
+                order={selectedReceipt}
+            />
+        </div>
+    );
 }
 
-            function AnalyticCard({title, value, icon: Icon, color, subtitle }: any) {
+function AnalyticCard({title, value, icon: Icon, color, subtitle }: any) {
     return (
-            <div className="bg-white p-8 rounded-[2rem] border border-gray-100 shadow-sm relative overflow-hidden group hover:shadow-xl transition-all duration-300">
-                <div className={cn("absolute top-0 right-0 w-32 h-32 opacity-[0.03] -mr-8 -mt-8 rounded-full", color)} />
-                <div className="relative z-10 flex flex-col h-full">
-                    <div className={cn("inline-flex p-3 rounded-2xl mb-6 w-fit", color)}>
-                        <Icon className="w-6 h-6 text-white" />
-                    </div>
-                    <p className="text-gray-500 text-[10px] font-black mb-1 uppercase tracking-widest">{title}</p>
-                    <h3 className="text-3xl font-black text-gray-900 tracking-tight leading-tight mb-2 truncate">{value}</h3>
-                    <p className="text-[10px] text-gray-400 font-bold flex items-center gap-1.5 uppercase tracking-tight">
-                        {subtitle}
-                    </p>
+        <div className="bg-white p-8 rounded-[2rem] border border-gray-100 shadow-sm relative overflow-hidden group hover:shadow-xl transition-all duration-300">
+            <div className={cn("absolute top-0 right-0 w-32 h-32 opacity-[0.03] -mr-8 -mt-8 rounded-full", color)} />
+            <div className="relative z-10 flex flex-col h-full">
+                <div className={cn("inline-flex p-3 rounded-2xl mb-6 w-fit", color)}>
+                    <Icon className="w-6 h-6 text-white" />
                 </div>
+                <p className="text-gray-500 text-[10px] font-black mb-1 uppercase tracking-widest">{title}</p>
+                <h3 className="text-3xl font-black text-gray-900 tracking-tight leading-tight mb-2 truncate">{value}</h3>
+                <p className="text-[10px] text-gray-400 font-bold flex items-center gap-1.5 uppercase tracking-tight">
+                    {subtitle}
+                </p>
             </div>
-            );
+        </div>
+    );
 }
