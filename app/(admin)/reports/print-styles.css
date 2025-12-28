@@ -1,0 +1,324 @@
+/* Print Styles for Reports */
+
+@media print {
+  * {
+    margin: 0;
+    padding: 0;
+    box-shadow: none !important;
+  }
+
+  body {
+    font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
+    background: white;
+    color: black;
+    line-height: 1.6;
+  }
+
+  /* Hide UI elements not needed for print */
+  .print\:hidden {
+    display: none !important;
+  }
+
+  /* Page setup */
+  @page {
+    size: A4;
+    margin: 0.5in;
+  }
+
+  /* Headers and Typography */
+  h1,
+  h2,
+  h3,
+  h4,
+  h5,
+  h6 {
+    margin-bottom: 0.5rem;
+    page-break-after: avoid;
+  }
+
+  /* Tables */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    page-break-inside: avoid;
+  }
+
+  thead {
+    display: table-header-group;
+    background-color: #f3f4f6 !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  tbody {
+    display: table-row-group;
+  }
+
+  tr {
+    page-break-inside: avoid;
+  }
+
+  th {
+    font-weight: 700;
+    text-align: left;
+    padding: 0.75rem;
+    border: 1px solid #d1d5db;
+    background-color: #f3f4f6;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  td {
+    padding: 0.75rem;
+    border: 1px solid #e5e7eb;
+  }
+
+  /* Alternating row colors for readability */
+  tbody tr:nth-child(odd) {
+    background-color: #f9fafb;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  tbody tr:nth-child(even) {
+    background-color: white;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  /* Cards and Sections */
+  .bg-white {
+    background-color: white;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .border {
+    border: 1px solid #d1d5db;
+  }
+
+  .rounded-\[2rem\] {
+    border-radius: 0;
+  }
+
+  /* Print Header */
+  .print\:block {
+    display: block !important;
+  }
+
+  .print\:text-center {
+    text-align: center;
+  }
+
+  .print\:border-b-2 {
+    border-bottom: 2px solid black;
+  }
+
+  .print\:pb-8 {
+    padding-bottom: 2rem;
+  }
+
+  .print\:mb-8 {
+    margin-bottom: 2rem;
+  }
+
+  /* Print Grid */
+  .print\:grid-cols-4 {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  /* Font and Text */
+  .font-black {
+    font-weight: 900;
+  }
+
+  .font-bold {
+    font-weight: 700;
+  }
+
+  .text-xs {
+    font-size: 0.75rem;
+  }
+
+  .text-sm {
+    font-size: 0.875rem;
+  }
+
+  .text-lg {
+    font-size: 1.125rem;
+  }
+
+  .text-2xl {
+    font-size: 1.5rem;
+  }
+
+  .text-3xl {
+    font-size: 1.875rem;
+  }
+
+  .text-4xl {
+    font-size: 2.25rem;
+  }
+
+  .uppercase {
+    text-transform: uppercase;
+  }
+
+  .tracking-tight {
+    letter-spacing: -0.025em;
+  }
+
+  .tracking-widest {
+    letter-spacing: 0.1em;
+  }
+
+  /* Colors for print */
+  .text-gray-400 {
+    color: #9ca3af;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .text-gray-500 {
+    color: #6b7280;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .text-gray-600 {
+    color: #4b5563;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .text-gray-900 {
+    color: #111827;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .text-brand-600 {
+    color: #2563eb;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .text-blue-600 {
+    color: #2563eb;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .text-emerald-600 {
+    color: #059669;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .text-orange-600 {
+    color: #ea580c;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  /* Background colors */
+  .bg-gray-50 {
+    background-color: #f9fafb;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .bg-gray-100 {
+    background-color: #f3f4f6;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  .bg-brand-50 {
+    background-color: #eff6ff;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  /* Page breaks */
+  .page-break {
+    page-break-after: always;
+  }
+
+  /* Prevent orphans and widows */
+  p,
+  li {
+    orphans: 3;
+    widows: 3;
+  }
+
+  /* Links */
+  a {
+    color: #2563eb;
+    text-decoration: underline;
+  }
+
+  /* Remove shadows and transforms */
+  .shadow-sm,
+  .shadow-md,
+  .shadow-lg,
+  .shadow-xl {
+    box-shadow: none !important;
+  }
+
+  /* Gradient backgrounds for print */
+  .bg-gradient-to-br {
+    background: #f9fafb !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  /* Print-friendly spacing */
+  .p-4 {
+    padding: 1rem;
+  }
+
+  .p-6 {
+    padding: 1.5rem;
+  }
+
+  .p-8 {
+    padding: 2rem;
+  }
+
+  .mb-4 {
+    margin-bottom: 1rem;
+  }
+
+  .mb-6 {
+    margin-bottom: 1.5rem;
+  }
+
+  /* Receipt specific */
+  .receipt-preview {
+    border: none;
+    box-shadow: none;
+    page-break-inside: avoid;
+  }
+
+  /* Analytics cards */
+  .bg-blue-50,
+  .bg-emerald-50,
+  .bg-purple-50,
+  .bg-orange-50 {
+    background-color: #f9fafb !important;
+    border: 1px solid #d1d5db !important;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+
+  /* Dividers */
+  .border-b,
+  .border-t {
+    border-color: #d1d5db;
+  }
+
+  .border-dashed {
+    border-style: dashed;
+  }
+}

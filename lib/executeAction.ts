@@ -16,7 +16,9 @@ const executeAction = async <T> ({
             message: successMessage,
         }
     } catch (error) {
+        console.log("ExecuteAction caught error:", error);
         if (isRedirectError(error)) {
+            console.log("Rethrowing redirect error");
             throw error;
         }
         return {

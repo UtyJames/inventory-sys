@@ -13,6 +13,9 @@ export const metadata: Metadata = {
   description: "inventory management system with POS",
 };
 
+import { Toaster } from "sonner";
+import { AuthProvider } from "@/components/providers/session-provider";
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -21,7 +24,10 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={`${figtree.variable} antialiased font-sans`}>
-        {children}
+        <AuthProvider>
+          {children}
+          <Toaster position="top-right" richColors />
+        </AuthProvider>
       </body>
     </html>
   );
