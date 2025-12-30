@@ -1,4 +1,7 @@
-import { isRedirectError } from "next/dist/client/components/redirect-error";
+const isRedirectError = (error: any) => {
+    return error?.digest?.toString().startsWith('NEXT_REDIRECT') || 
+           error?.message === 'NEXT_REDIRECT';
+};
 
 type Options<T> = {
     actionFn: () => Promise<T>;

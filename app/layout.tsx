@@ -23,7 +23,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en">
-      <body className={`${figtree.variable} antialiased font-sans`}>
+      <body className={`${figtree.variable} antialiased font-sans`} suppressHydrationWarning>
         <AuthProvider>
           {children}
           <Toaster position="top-right" richColors />

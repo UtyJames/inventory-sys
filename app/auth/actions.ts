@@ -4,14 +4,7 @@ import { executeAction } from "@/lib/executeAction";
 import { signIn } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import bcrypt from "bcryptjs";
-// Define Role locally to avoid import issues with generated client during build
-export const Role = {
-  CASHIER: "CASHIER",
-  MANAGER: "MANAGER",
-  ADMIN: "ADMIN",
-} as const;
-
-export type Role = (typeof Role)[keyof typeof Role];
+import { Role } from "@/lib/types";
 
 export async function signInAction(formData: FormData) {
   return await executeAction({
