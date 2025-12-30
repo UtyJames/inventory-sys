@@ -24,7 +24,7 @@ export default async function DashboardPage() {
 
   const stats = statsResult.success ? statsResult.stats : null
   const reports = reportsResult.success ? reportsResult.reports : []
-  const hourlyData = hourlyResult.success ? hourlyResult.data : []
+  const hourlyData: any[] = hourlyResult.success ? (hourlyResult as any).data : []
   const stockAlerts = alertsResult.success ? alertsResult.alerts : []
   const popularItems = popularResult.success ? popularResult.items : []
 

@@ -61,7 +61,7 @@ export function AddProductForm({ categories, onSuccess }: { categories: any[], o
   const [loading, setLoading] = useState(false);
 
   const { register, handleSubmit, watch, setValue, formState: { errors } } = useForm<ProductFormValues>({
-    resolver: zodResolver(productSchema),
+    resolver: zodResolver(productSchema) as any,
     defaultValues: {
       trackInventory: true,
       taxInclusive: true,
@@ -75,7 +75,7 @@ export function AddProductForm({ categories, onSuccess }: { categories: any[], o
   const onSubmit = async (data: ProductFormValues) => {
     setLoading(true);
     try {
-      const result = await createProduct(data);
+      const result = await createProduct({ ...data, status: true });
       if (result.success) {
         toast.success("Product created successfully");
         onSuccess?.();

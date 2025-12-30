@@ -88,8 +88,8 @@ export async function updateProduct(id: string, data: Partial<z.infer<typeof Pro
   try {
     // Clean up empty strings for optional relations
     const cleanData = { ...data };
-    if (cleanData.supplierId === "") cleanData.supplierId = null;
-    if (cleanData.categoryId === "") delete cleanData.categoryId; // Category is required, don't allow unsetting
+    if (cleanData.supplierId === "") cleanData.supplierId = null as any;
+    if (cleanData.categoryId === "") delete (cleanData as any).categoryId; // Category is required, don't allow unsetting
 
     const product = await prisma.product.update({
       where: { id },

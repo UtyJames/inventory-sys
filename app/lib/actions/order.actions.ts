@@ -428,7 +428,7 @@ export async function getStaffPerformanceReport(filters?: {
     } = {};
 
     orders.forEach((order) => {
-      const staffId = order.userId;
+      const staffId = order.userId || "unknown";
       if (!staffStats[staffId]) {
         staffStats[staffId] = {
           name: order.user?.name || "Unknown",

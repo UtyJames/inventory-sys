@@ -66,7 +66,7 @@ export function EditProductModal({ isOpen, onClose, onSuccess, product, categori
     const [loading, setLoading] = useState(false);
 
     const { register, handleSubmit, watch, setValue, reset, formState: { errors } } = useForm<ProductFormValues>({
-        resolver: zodResolver(productSchema),
+        resolver: zodResolver(productSchema) as any,
     });
 
     useEffect(() => {
