@@ -46,6 +46,9 @@ const productSchema = z.object({
   expiryTracking: z.boolean().default(false),
   isSeasonal: z.boolean().default(false),
   isFoodItem: z.boolean().default(false),
+  showOnMenu: z.boolean().default(false),
+  menuCategory: z.string().optional(),
+  menuOrder: z.number().default(999),
 });
 
 type ProductFormValues = z.infer<typeof productSchema>;
@@ -71,6 +74,8 @@ export function AddProductForm({ categories, onSuccess }: { categories: any[], o
       stockUnit: "pcs",
       taxRate: 0,
       isFoodItem: false,
+      showOnMenu: false,
+      menuOrder: 999,
     }
   });
 

@@ -99,7 +99,7 @@ export async function getProducts(params?: {
   }
 }
 
-export async function createProduct(data: z.infer<typeof ProductSchema>) {
+export async function createProduct(data: z.input<typeof ProductSchema>) {
   const session = await auth();
   if (!session || (session.user.role !== "ADMIN" && session.user.role !== "MANAGER")) {
     return { success: false, error: "Unauthorized: Only admins and managers can create products" };
@@ -154,7 +154,7 @@ export async function createProduct(data: z.infer<typeof ProductSchema>) {
   }
 }
 
-export async function updateProduct(id: string, data: Partial<z.infer<typeof ProductSchema>>) {
+export async function updateProduct(id: string, data: Partial<z.input<typeof ProductSchema>>) {
   const session = await auth();
   if (!session || (session.user.role !== "ADMIN" && session.user.role !== "MANAGER")) {
     return { success: false, error: "Unauthorized: Only admins and managers can update products" };
