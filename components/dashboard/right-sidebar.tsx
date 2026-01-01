@@ -29,35 +29,29 @@ export function RightSidebarDashboard({ stockAlerts = [], popularItems = [] }: R
         { name: "Pasta Carbonara", orders: "19 orders today", price: 14.00, id: "3" },
     ];
 
-    const demoStockAlerts = [
-        { item: "Tomato Sauce", level: "2 units left", status: "Critical", color: "text-red-600 bg-red-50 border-red-100" },
-        { item: "Milk", level: "5 units left", status: "Warning", color: "text-orange-600 bg-orange-50 border-orange-100" },
-    ];
-
     const displayPopular = popularItems.length > 0 ? popularItems : demoPopularItems;
 
-    const displayAlerts = stockAlerts.length > 0
-        ? stockAlerts.map(alert => {
-            const percentageLeft = alert.lowStockAlert ? (alert.stock / alert.lowStockAlert) * 100 : 0;
-            let status = "Normal";
-            let color = "text-green-600 bg-green-50 border-green-100";
+    const displayAlerts = stockAlerts.map(alert => {
+        const percentageLeft = alert.lowStockAlert ? (alert.stock / alert.lowStockAlert) * 100 : 0;
+        let status = "Normal";
+        let color = "text-green-600 bg-green-50 border-green-100";
 
-            if (percentageLeft <= 25) {
-                status = "Critical";
-                color = "text-red-600 bg-red-50 border-red-100";
-            } else if (percentageLeft <= 50) {
-                status = "Warning";
-                color = "text-orange-600 bg-orange-50 border-orange-100";
-            }
+        if (percentageLeft <= 25) {
+            status = "Critical";
+            color = "text-red-600 bg-red-50 border-red-100";
+        } else if (percentageLeft <= 50) {
+            status = "Warning";
+            color = "text-orange-600 bg-orange-50 border-orange-100";
+        }
 
-            return {
-                item: alert.name,
-                level: `${alert.stock} ${alert.stockUnit || 'units'} left`,
-                status,
-                color
-            };
-        })
-        : demoStockAlerts;
+        return {
+            id: alert.id, // Ensure ID is passed if needed, or use name key
+            item: alert.name,
+            level: `${alert.stock} ${alert.stockUnit || 'units'} left`,
+            status,
+            color
+        };
+    });
     return (
         <div className="space-y-6">
             <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm">

@@ -28,9 +28,9 @@ const productSchema = z.object({
   sku: z.string().optional(),
   categoryId: z.string().min(1, "Category is required"),
   description: z.string().optional(),
-  price: z.number().min(0, "Price must be positive"),
+  price: z.number().min(0, "Price must be a positive number"),
   costPrice: z.number().optional(),
-  initialStock: z.number().min(0).default(0),
+  initialStock: z.number().min(0, "Stock cannot be negative").optional(),
   lowStockAlert: z.number().optional(),
   stockUnit: z.string().default("pcs"),
   trackInventory: z.boolean().default(true),
@@ -45,6 +45,7 @@ const productSchema = z.object({
   reorderQuantity: z.number().optional(),
   expiryTracking: z.boolean().default(false),
   isSeasonal: z.boolean().default(false),
+  isFoodItem: z.boolean().default(false),
 });
 
 type ProductFormValues = z.infer<typeof productSchema>;
@@ -69,6 +70,7 @@ export function AddProductForm({ categories, onSuccess }: { categories: any[], o
       displayColor: "#3b82f6",
       stockUnit: "pcs",
       taxRate: 0,
+      isFoodItem: false,
     }
   });
 
@@ -93,6 +95,22 @@ export function AddProductForm({ categories, onSuccess }: { categories: any[], o
   const prevStep = () => setCurrentStep(prev => Math.max(prev - 1, 0));
 
   const watchValues = watch();
+
+  // Helper to check if current step is valid
+  const isStepValid = () => {
+    switch (currentStep) {
+      case 0:
+        return !!watchValues.name && !!watchValues.categoryId;
+      case 1:
+        return typeof watchValues.price === 'number' && !isNaN(watchValues.price) && watchValues.price > 0;
+      case 2:
+        return true; // POS settings are optional
+      case 3:
+        return true; // Advanced settings are optional
+      default:
+        return false;
+    }
+  };
 
   return (
     <div className="bg-white rounded-[32px] border border-gray-100 shadow-sm overflow-hidden flex flex-col h-full max-h-[800px]">
@@ -136,12 +154,13 @@ export function AddProductForm({ categories, onSuccess }: { categories: any[], o
               </div>
 
               <div className="space-y-2">
-                <label className="text-xs font-black uppercase tracking-widest text-gray-400">SKU / Barcode</label>
+                <label className="text-xs font-black uppercase tracking-widest text-gray-400">SKU / Barcode (Optional)</label>
                 <input
                   {...register("sku")}
-                  placeholder="AUTO-GENERATED"
+                  placeholder="Leave empty to auto-generate"
                   className="w-full h-14 px-6 rounded-2xl bg-gray-50 border-transparent focus:bg-white focus:border-brand-500 transition-all font-bold text-gray-900"
                 />
+                <p className="text-[10px] text-gray-400 font-medium">SKU will be auto-generated if left empty</p>
               </div>
 
               <div className="space-y-2">
@@ -156,7 +175,7 @@ export function AddProductForm({ categories, onSuccess }: { categories: any[], o
               </div>
 
               <div className="col-span-2 space-y-2">
-                <label className="text-xs font-black uppercase tracking-widest text-gray-400">Description</label>
+                <label className="text-xs font-black uppercase tracking-widest text-gray-400">Description (Optional)</label>
                 <textarea
                   {...register("description")}
                   placeholder="Brief description of the product..."
@@ -182,18 +201,50 @@ export function AddProductForm({ categories, onSuccess }: { categories: any[], o
               </div>
 
               <div className="space-y-2">
-                <label className="text-xs font-black uppercase tracking-widest text-gray-400">Cost Price</label>
+                <label className="text-xs font-black uppercase tracking-widest text-gray-400">Cost Price (Optional)</label>
                 <div className="relative">
                   <span className="absolute left-6 top-1/2 -translate-y-1/2 font-black text-gray-400">₦</span>
                   <input
                     type="number" step="0.01"
-                    {...register("costPrice", { valueAsNumber: true })}
+                    {...register("costPrice", {
+                      setValueAs: (v) => v === "" || isNaN(Number(v)) ? undefined : Number(v)
+                    })}
+                    placeholder="For profit tracking"
                     className="w-full h-14 pl-10 pr-6 rounded-2xl bg-gray-50 border-transparent focus:bg-white focus:border-brand-500 transition-all font-black text-gray-900"
                   />
                 </div>
               </div>
 
-              <div className="col-span-2 p-8 bg-brand-50/50 rounded-[32px] border border-brand-100 flex items-center justify-between">
+              {/* Food Item Toggle */}
+              <div className="col-span-2 p-8 bg-orange-50/50 rounded-[32px] border border-orange-100 flex items-center justify-between">
+                <div>
+                  <h4 className="font-bold text-orange-900">Food Item</h4>
+                  <p className="text-xs text-orange-600 mt-1 font-medium">Menu items that don't require inventory tracking</p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const newValue = !watchValues.isFoodItem;
+                    setValue("isFoodItem", newValue);
+                    if (newValue) {
+                      // Auto-disable inventory tracking for food items
+                      setValue("trackInventory", false);
+                    }
+                  }}
+                  className={cn(
+                    "w-14 h-8 rounded-full transition-all relative p-1 px-1.5 flex items-center",
+                    watchValues.isFoodItem ? "bg-orange-500" : "bg-gray-200"
+                  )}
+                >
+                  <div className={cn("w-6 h-6 bg-white rounded-full shadow-sm transition-all transform", watchValues.isFoodItem ? "translate-x-6" : "translate-x-0")} />
+                </button>
+              </div>
+
+              {/* Track Inventory Toggle - Disabled if food item */}
+              <div className={cn(
+                "col-span-2 p-8 bg-brand-50/50 rounded-[32px] border border-brand-100 flex items-center justify-between",
+                watchValues.isFoodItem && "opacity-50 pointer-events-none"
+              )}>
                 <div>
                   <h4 className="font-bold text-brand-900">Track Inventory</h4>
                   <p className="text-xs text-brand-600 mt-1 font-medium">Keep track of stock levels for this product</p>
@@ -210,21 +261,28 @@ export function AddProductForm({ categories, onSuccess }: { categories: any[], o
                 </button>
               </div>
 
-              {watchValues.trackInventory && (
+              {/* Stock Fields - Hidden if food item */}
+              {!watchValues.isFoodItem && watchValues.trackInventory && (
                 <>
                   <div className="space-y-2">
-                    <label className="text-xs font-black uppercase tracking-widest text-gray-400">Initial Stock</label>
+                    <label className="text-xs font-black uppercase tracking-widest text-gray-400">Initial Stock (Optional)</label>
                     <input
                       type="number"
-                      {...register("initialStock", { valueAsNumber: true })}
+                      {...register("initialStock", {
+                        setValueAs: (v) => v === "" || isNaN(Number(v)) ? undefined : Number(v)
+                      })}
+                      placeholder="Defaults to 0"
                       className="w-full h-14 px-6 rounded-2xl bg-gray-50 border-transparent focus:bg-white focus:border-brand-500 transition-all font-black text-gray-900"
                     />
                   </div>
                   <div className="space-y-2">
-                    <label className="text-xs font-black uppercase tracking-widest text-gray-400">Low Stock Alert</label>
+                    <label className="text-xs font-black uppercase tracking-widest text-gray-400">Low Stock Alert (Optional)</label>
                     <input
                       type="number"
-                      {...register("lowStockAlert", { valueAsNumber: true })}
+                      {...register("lowStockAlert", {
+                        setValueAs: (v) => v === "" || isNaN(Number(v)) ? undefined : Number(v)
+                      })}
+                      placeholder="Alert threshold"
                       className="w-full h-14 px-6 rounded-2xl bg-gray-50 border-transparent focus:bg-white focus:border-brand-500 transition-all font-black text-gray-900"
                     />
                   </div>
@@ -329,7 +387,9 @@ export function AddProductForm({ categories, onSuccess }: { categories: any[], o
                   <div className="text-right">
                     <p className="text-xs font-bold text-gray-500 uppercase tracking-widest">Profit Margin</p>
                     <p className="text-2xl font-black text-green-400">
-                      {watchValues.price && watchValues.costPrice ?
+                      {typeof watchValues.price === 'number' && !isNaN(watchValues.price) &&
+                        typeof watchValues.costPrice === 'number' && !isNaN(watchValues.costPrice) &&
+                        watchValues.price > 0 ?
                         `${Math.round(((watchValues.price - watchValues.costPrice) / watchValues.price) * 100)}%` :
                         "--"}
                     </p>
@@ -352,7 +412,9 @@ export function AddProductForm({ categories, onSuccess }: { categories: any[], o
                     </div>
                     <div>
                       <h3 className="text-2xl font-black text-gray-900">{watchValues.name || "Product Name"}</h3>
-                      <p className="text-brand-600 font-black text-xl mt-1">₦{watchValues.price?.toLocaleString() || "0.00"}</p>
+                      <p className="text-brand-600 font-black text-xl mt-1">
+                        ₦{typeof watchValues.price === 'number' && !isNaN(watchValues.price) ? watchValues.price.toLocaleString() : "0.00"}
+                      </p>
                     </div>
                   </div>
                 </div>
@@ -421,8 +483,8 @@ export function AddProductForm({ categories, onSuccess }: { categories: any[], o
               <Button
                 type="button"
                 onClick={nextStep}
-                disabled={currentStep === 0 && !watchValues.name}
-                className="h-14 px-8 rounded-2xl font-black bg-brand-500 hover:bg-brand-600 shadow-xl shadow-brand-200"
+                disabled={!isStepValid()}
+                className="h-14 px-8 rounded-2xl font-black bg-brand-500 hover:bg-brand-600 shadow-xl shadow-brand-200 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Next Step
                 <ChevronRight className="ml-2 w-5 h-5" />

@@ -168,13 +168,14 @@ export async function getHourlyPerformance() {
       [key: number]: { revenue: number; profit: number; count: number };
     } = {};
 
-    for (let i = 10; i < 18; i++) {
+    // Cover 8 AM to 10 PM
+    for (let i = 8; i <= 22; i++) {
       hourlyData[i] = { revenue: 0, profit: 0, count: 0 };
     }
 
     orders.forEach((order) => {
       const hour = order.createdAt.getHours();
-      if (hour >= 10 && hour < 18) {
+      if (hour >= 8 && hour <= 22) {
         hourlyData[hour].revenue += Number(order.total);
         hourlyData[hour].count += 1;
         order.items.forEach((item) => {

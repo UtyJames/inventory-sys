@@ -11,17 +11,26 @@ import {
     BarChart3,
     Settings,
     LogOut,
-    ChevronRight
+    ChevronRight,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { signOut } from "next-auth/react";
 import { useState, useRef, useEffect } from "react";
+import { ThemeToggle } from "@/components/theme-toggle";
 
-const sidebarLinks = [
+interface SidebarLink {
+    name: string;
+    href: string;
+    icon: any;
+    roles: string[];
+    badge?: string;
+}
+
+const sidebarLinks: SidebarLink[] = [
     { name: "Dashboard", href: "/", icon: LayoutDashboard, roles: ["ADMIN", "MANAGER", "CASHIER"] },
-    { name: "Orders", href: "/orders", icon: ShoppingBag, roles: ["ADMIN", "MANAGER", "CASHIER"], badge: "8" },
-    { name: "Menu Mgmt", href: "/menu", icon: UtensilsCrossed, roles: ["ADMIN", "MANAGER"] },
+    { name: "Orders", href: "/orders", icon: ShoppingBag, roles: ["ADMIN", "MANAGER", "CASHIER"] },
+    { name: "Menu Mgmt", href: "/digital-menu", icon: UtensilsCrossed, roles: ["ADMIN", "MANAGER"] },
     { name: "Inventory", href: "/inventory", icon: Warehouse, roles: ["ADMIN", "MANAGER"] },
     { name: "Staff", href: "/staff", icon: Users, roles: ["ADMIN"] },
     { name: "Reports", href: "/reports", icon: BarChart3, roles: ["ADMIN", "MANAGER"] },
@@ -106,6 +115,8 @@ export function Sidebar({ user }: SidebarProps) {
                     <Settings className="w-5 h-5" />
                     <span className="text-sm">Settings</span>
                 </Link>
+
+                <ThemeToggle />
 
                 <div className="relative" ref={menuRef}>
                     <button

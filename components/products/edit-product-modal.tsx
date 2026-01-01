@@ -42,6 +42,7 @@ const productSchema = z.object({
     reorderQuantity: z.number().nullish().transform(v => v ?? 0).pipe(z.number()),
     expiryTracking: z.boolean().default(false),
     isSeasonal: z.boolean().default(false),
+    isFoodItem: z.boolean().default(false),
 });
 
 type ProductFormValues = z.infer<typeof productSchema>;
@@ -92,6 +93,7 @@ export function EditProductModal({ isOpen, onClose, onSuccess, product, categori
                 reorderQuantity: product.reorderQuantity || 0,
                 expiryTracking: !!product.expiryTracking,
                 isSeasonal: !!product.isSeasonal,
+                isFoodItem: !!product.isFoodItem,
             });
         }
     }, [product, reset]);
@@ -219,7 +221,35 @@ export function EditProductModal({ isOpen, onClose, onSuccess, product, categori
                                         </div>
                                     </div>
 
-                                    <div className="col-span-2 p-8 bg-brand-50/50 rounded-[32px] border border-brand-100 flex items-center justify-between">
+                                    {/* Food Item Toggle */}
+                                    <div className="col-span-2 p-8 bg-orange-50/50 rounded-[32px] border border-orange-100 flex items-center justify-between">
+                                        <div>
+                                            <h4 className="font-bold text-orange-900">Food Item</h4>
+                                            <p className="text-xs text-orange-600 mt-1 font-medium">Menu items that don't require inventory tracking</p>
+                                        </div>
+                                        <button
+                                            type="button"
+                                            onClick={() => {
+                                                const newValue = !watchValues.isFoodItem;
+                                                setValue("isFoodItem", newValue);
+                                                if (newValue) {
+                                                    setValue("trackInventory", false);
+                                                }
+                                            }}
+                                            className={cn(
+                                                "w-14 h-8 rounded-full transition-all relative p-1 px-1.5 flex items-center",
+                                                watchValues.isFoodItem ? "bg-orange-500" : "bg-gray-200"
+                                            )}
+                                        >
+                                            <div className={cn("w-6 h-6 bg-white rounded-full shadow-sm transition-all transform", watchValues.isFoodItem ? "translate-x-6" : "translate-x-0")} />
+                                        </button>
+                                    </div>
+
+                                    {/* Track Inventory - Disabled if food item */}
+                                    <div className={cn(
+                                        "col-span-2 p-8 bg-brand-50/50 rounded-[32px] border border-brand-100 flex items-center justify-between",
+                                        watchValues.isFoodItem && "opacity-50 pointer-events-none"
+                                    )}>
                                         <div>
                                             <h4 className="font-bold text-brand-900">Track Inventory</h4>
                                             <p className="text-xs text-brand-600 mt-1 font-medium">Keep track of stock levels for this product</p>
@@ -236,7 +266,8 @@ export function EditProductModal({ isOpen, onClose, onSuccess, product, categori
                                         </button>
                                     </div>
 
-                                    {watchValues.trackInventory && (
+                                    {/* Stock Fields - Hidden for food items */}
+                                    {!watchValues.isFoodItem && watchValues.trackInventory && (
                                         <div className="space-y-2">
                                             <label className="text-xs font-black uppercase tracking-widest text-gray-400">Low Stock Alert</label>
                                             <input

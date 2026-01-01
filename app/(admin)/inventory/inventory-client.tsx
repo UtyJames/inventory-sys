@@ -4,7 +4,8 @@ import {
     Dialog,
     DialogContent,
     DialogHeader,
-    DialogTitle
+    DialogTitle,
+    DialogDescription
 } from "../../../components/ui/dialog";
 
 import { useState, useEffect } from "react";
@@ -40,9 +41,19 @@ interface InventoryClientProps {
     initialProducts: any[];
     categories: any[];
     user: any;
+    totalProducts: number;
+    currentPage: number;
+    pageSize: number;
 }
 
-export function InventoryClient({ initialProducts, categories, user }: InventoryClientProps) {
+export function InventoryClient({
+    initialProducts,
+    categories,
+    user,
+    totalProducts,
+    currentPage,
+    pageSize
+}: InventoryClientProps) {
     const router = useRouter();
     const searchParams = useSearchParams();
 
@@ -63,6 +74,13 @@ export function InventoryClient({ initialProducts, categories, user }: Inventory
         const params = new URLSearchParams(searchParams.toString());
         if (id) params.set("category", id);
         else params.delete("category");
+        params.set("page", "1"); // Reset to page 1 on category change
+        router.push(`/inventory?${params.toString()}`);
+    };
+
+    const setPage = (page: number) => {
+        const params = new URLSearchParams(searchParams.toString());
+        params.set("page", page.toString());
         router.push(`/inventory?${params.toString()}`);
     };
 
@@ -70,6 +88,7 @@ export function InventoryClient({ initialProducts, categories, user }: Inventory
         const params = new URLSearchParams(searchParams.toString());
         if (term) params.set("search", term);
         else params.delete("search");
+        params.set("page", "1"); // Reset to page 1 on search change
         router.push(`/inventory?${params.toString()}`);
     };
 
@@ -233,116 +252,186 @@ export function InventoryClient({ initialProducts, categories, user }: Inventory
                             onUpdateStock={(p) => setStockUpdateProduct(p)}
                         />
                     ) : (
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                            {initialProducts.map((product) => (
-                                <div
-                                    key={product.id}
-                                    onClick={() => setViewProduct(product)}
-                                    className="bg-white rounded-[32px] p-6 border border-gray-50 shadow-sm hover:shadow-xl hover:shadow-gray-200/50 transition-all group animate-in zoom-in-95 duration-300 cursor-pointer"
-                                >
-                                    <div className="flex justify-between items-start mb-6">
-                                        <div
-                                            className="w-14 h-14 rounded-2xl flex items-center justify-center text-xl font-black text-white shadow-lg"
-                                            style={{ backgroundColor: product.displayColor || "#3b82f6" }}
-                                        >
-                                            {product.name.charAt(0)}
-                                        </div>
-                                        <div className={cn(
-                                            "px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider",
-                                            product.stock > (product.lowStockAlert || 0) ? "bg-green-50 text-green-600" :
-                                                product.stock > 0 ? "bg-orange-50 text-orange-600" : "bg-red-50 text-red-600"
-                                        )}>
-                                            {product.stock > (product.lowStockAlert || 0) ? "In Stock" :
-                                                product.stock > 0 ? "Low Stock" : "Sold Out"}
-                                        </div>
-                                    </div>
-
-                                    <div>
-                                        <div className="flex items-center justify-between mb-1">
-                                            <h3 className="font-extrabold text-[#111827] text-lg leading-tight group-hover:text-brand-600 transition-colors truncate pr-4">{product.name}</h3>
-                                            <span className="font-black text-brand-600">{formatNaira(product.price)}</span>
-                                        </div>
-                                        <div className="flex items-center justify-between">
-                                            <p className="text-[12px] text-gray-400 font-bold uppercase tracking-widest">{product.category.name}</p>
-                                            <span className="text-[10px] font-black bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full">
-                                                {formatNumber(product.stock)} {product.stockUnit || 'units'}
-                                            </span>
+                        <>
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                                {initialProducts.map((product) => (
+                                    <div
+                                        key={product.id}
+                                        onClick={() => setViewProduct(product)}
+                                        className="bg-white rounded-[32px] p-6 border border-gray-50 shadow-sm hover:shadow-xl hover:shadow-gray-200/50 transition-all group animate-in zoom-in-95 duration-300 cursor-pointer"
+                                    >
+                                        <div className="flex justify-between items-start mb-6">
+                                            <div
+                                                className="w-14 h-14 rounded-2xl flex items-center justify-center text-xl font-black text-white shadow-lg"
+                                                style={{ backgroundColor: product.displayColor || "#3b82f6" }}
+                                            >
+                                                {product.name.charAt(0)}
+                                            </div>
+                                            <div className={cn(
+                                                "px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-wider",
+                                                product.stock > (product.lowStockAlert || 0) ? "bg-green-50 text-green-600" :
+                                                    product.stock > 0 ? "bg-orange-50 text-orange-600" : "bg-red-50 text-red-600"
+                                            )}>
+                                                {product.stock > (product.lowStockAlert || 0) ? "In Stock" :
+                                                    product.stock > 0 ? "Low Stock" : "Sold Out"}
+                                            </div>
                                         </div>
 
-                                        <div className="mt-6 flex items-center justify-between pt-6 border-t border-gray-50">
-                                            <div className="flex flex-col">
-                                                <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Availability</span>
-                                                <div className="flex items-center gap-2 mt-1">
-                                                    <div className={cn("w-1.5 h-1.5 rounded-full", product.status ? "bg-green-500" : "bg-gray-300")} />
-                                                    <span className="text-xs font-black text-gray-900">{product.status ? "Active" : "Inactive"}</span>
+                                        <div>
+                                            <div className="flex items-center justify-between mb-1">
+                                                <h3 className="font-extrabold text-[#111827] text-lg leading-tight group-hover:text-brand-600 transition-colors truncate pr-4">{product.name}</h3>
+                                                <span className="font-black text-brand-600">{formatNaira(product.price)}</span>
+                                            </div>
+                                            <div className="flex items-center justify-between">
+                                                <p className="text-[12px] text-gray-400 font-bold uppercase tracking-widest">{product.category.name}</p>
+                                                <span className="text-[10px] font-black bg-gray-100 text-gray-500 px-2 py-0.5 rounded-full">
+                                                    {formatNumber(product.stock)} {product.stockUnit || 'units'}
+                                                </span>
+                                            </div>
+
+                                            <div className="mt-6 flex items-center justify-between pt-6 border-t border-gray-50">
+                                                <div className="flex flex-col">
+                                                    <span className="text-[10px] text-gray-400 font-bold uppercase tracking-wider">Availability</span>
+                                                    <div className="flex items-center gap-2 mt-1">
+                                                        <div className={cn("w-1.5 h-1.5 rounded-full", product.status ? "bg-green-500" : "bg-gray-300")} />
+                                                        <span className="text-xs font-black text-gray-900">{product.status ? "Active" : "Inactive"}</span>
+                                                    </div>
+                                                </div>
+                                                <div className="relative">
+                                                    <button
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            setActiveMenuProduct(activeMenuProduct === product.id ? null : product.id);
+                                                        }}
+                                                        className="p-2 text-gray-400 hover:text-gray-900 transition-colors bg-gray-50 rounded-xl"
+                                                    >
+                                                        <MoreVertical className="w-5 h-5" />
+                                                    </button>
+
+                                                    {activeMenuProduct === product.id && (
+                                                        <div className="absolute bottom-full right-0 mb-2 w-48 bg-white rounded-2xl shadow-2xl border border-gray-100 py-3 z-50 animate-in fade-in slide-in-from-bottom-2 duration-200">
+                                                            <button
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    setStockUpdateProduct(product);
+                                                                    setActiveMenuProduct(null);
+                                                                }}
+                                                                className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-bold text-gray-600 hover:bg-brand-50 hover:text-brand-600 transition-colors"
+                                                            >
+                                                                <Package className="w-4 h-4" />
+                                                                Update Stock
+                                                            </button>
+                                                            <button
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    setViewProduct(product);
+                                                                    setActiveMenuProduct(null);
+                                                                }}
+                                                                className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-bold text-gray-600 hover:bg-brand-50 hover:text-brand-600 transition-colors"
+                                                            >
+                                                                <Search className="w-4 h-4" />
+                                                                View Details
+                                                            </button>
+                                                            <button
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    setEditProduct(product);
+                                                                    setActiveMenuProduct(null);
+                                                                }}
+                                                                className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-bold text-brand-600 hover:bg-brand-50 transition-colors"
+                                                            >
+                                                                <ArrowUpRight className="w-4 h-4" />
+                                                                Edit Item
+                                                            </button>
+                                                            <div className="h-px bg-gray-50 my-1 mx-4" />
+                                                            <button
+                                                                onClick={(e) => {
+                                                                    e.stopPropagation();
+                                                                    setDeleteProductItem(product);
+                                                                    setActiveMenuProduct(null);
+                                                                }}
+                                                                className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-bold text-red-500 hover:bg-red-50 transition-colors"
+                                                            >
+                                                                <Plus className="w-4 h-4 rotate-45" />
+                                                                Delete
+                                                            </button>
+                                                        </div>
+                                                    )}
                                                 </div>
                                             </div>
-                                            <div className="relative">
-                                                <button
-                                                    onClick={(e) => {
-                                                        e.stopPropagation();
-                                                        setActiveMenuProduct(activeMenuProduct === product.id ? null : product.id);
-                                                    }}
-                                                    className="p-2 text-gray-400 hover:text-gray-900 transition-colors bg-gray-50 rounded-xl"
-                                                >
-                                                    <MoreVertical className="w-5 h-5" />
-                                                </button>
-
-                                                {activeMenuProduct === product.id && (
-                                                    <div className="absolute bottom-full right-0 mb-2 w-48 bg-white rounded-2xl shadow-2xl border border-gray-100 py-3 z-50 animate-in fade-in slide-in-from-bottom-2 duration-200">
-                                                        <button
-                                                            onClick={(e) => {
-                                                                e.stopPropagation();
-                                                                setStockUpdateProduct(product);
-                                                                setActiveMenuProduct(null);
-                                                            }}
-                                                            className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-bold text-gray-600 hover:bg-brand-50 hover:text-brand-600 transition-colors"
-                                                        >
-                                                            <Package className="w-4 h-4" />
-                                                            Update Stock
-                                                        </button>
-                                                        <button
-                                                            onClick={(e) => {
-                                                                e.stopPropagation();
-                                                                setViewProduct(product);
-                                                                setActiveMenuProduct(null);
-                                                            }}
-                                                            className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-bold text-gray-600 hover:bg-brand-50 hover:text-brand-600 transition-colors"
-                                                        >
-                                                            <Search className="w-4 h-4" />
-                                                            View Details
-                                                        </button>
-                                                        <button
-                                                            onClick={(e) => {
-                                                                e.stopPropagation();
-                                                                setEditProduct(product);
-                                                                setActiveMenuProduct(null);
-                                                            }}
-                                                            className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-bold text-brand-600 hover:bg-brand-50 transition-colors"
-                                                        >
-                                                            <ArrowUpRight className="w-4 h-4" />
-                                                            Edit Item
-                                                        </button>
-                                                        <div className="h-px bg-gray-50 my-1 mx-4" />
-                                                        <button
-                                                            onClick={(e) => {
-                                                                e.stopPropagation();
-                                                                setDeleteProductItem(product);
-                                                                setActiveMenuProduct(null);
-                                                            }}
-                                                            className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-bold text-red-500 hover:bg-red-50 transition-colors"
-                                                        >
-                                                            <Plus className="w-4 h-4 rotate-45" />
-                                                            Delete
-                                                        </button>
-                                                    </div>
-                                                )}
-                                            </div>
                                         </div>
                                     </div>
+                                ))}
+                            </div>
+                            {/* Pagination Controls */}
+                            {totalProducts > pageSize && (
+                                <div className="mt-12 flex items-center justify-between bg-white p-6 rounded-[32px] border border-gray-100 shadow-sm">
+                                    <div className="flex flex-col">
+                                        <span className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">Showing</span>
+                                        <p className="text-sm font-black text-gray-900">
+                                            {Math.min((currentPage - 1) * pageSize + 1, totalProducts)} - {Math.min(currentPage * pageSize, totalProducts)}
+                                            <span className="text-gray-400 font-bold mx-1">of</span>
+                                            {totalProducts} Items
+                                        </p>
+                                    </div>
+
+                                    <div className="flex items-center gap-2">
+                                        <Button
+                                            variant="outline"
+                                            onClick={() => setPage(currentPage - 1)}
+                                            disabled={currentPage <= 1}
+                                            className="h-12 w-12 rounded-2xl border-gray-100 text-gray-400 hover:text-brand-600 hover:border-brand-200 disabled:opacity-30"
+                                        >
+                                            <ChevronRight className="w-5 h-5 rotate-180" />
+                                        </Button>
+
+                                        <div className="flex items-center gap-1 mx-2">
+                                            {Array.from({ length: Math.ceil(totalProducts / pageSize) }).map((_, i) => {
+                                                const pageNumber = i + 1;
+                                                const totalPages = Math.ceil(totalProducts / pageSize);
+                                                // Show 5 pages max around current page
+                                                if (
+                                                    pageNumber === 1 ||
+                                                    pageNumber === totalPages ||
+                                                    (pageNumber >= currentPage - 1 && pageNumber <= currentPage + 1)
+                                                ) {
+                                                    return (
+                                                        <button
+                                                            key={pageNumber}
+                                                            onClick={() => setPage(pageNumber)}
+                                                            className={cn(
+                                                                "w-10 h-10 rounded-xl font-black text-sm transition-all",
+                                                                currentPage === pageNumber
+                                                                    ? "bg-brand-500 text-white shadow-lg shadow-brand-500/20 scale-110"
+                                                                    : "text-gray-400 hover:bg-gray-50 hover:text-gray-900"
+                                                            )}
+                                                        >
+                                                            {pageNumber}
+                                                        </button>
+                                                    );
+                                                }
+                                                if (
+                                                    (pageNumber === 2 && currentPage > 3) ||
+                                                    (pageNumber === totalPages - 1 && currentPage < totalPages - 2)
+                                                ) {
+                                                    return <span key={pageNumber} className="text-gray-300 font-bold px-1">...</span>;
+                                                }
+                                                return null;
+                                            })}
+                                        </div>
+
+                                        <Button
+                                            variant="outline"
+                                            onClick={() => setPage(currentPage + 1)}
+                                            disabled={currentPage >= Math.ceil(totalProducts / pageSize)}
+                                            className="h-12 w-12 rounded-2xl border-gray-100 text-gray-400 hover:text-brand-600 hover:border-brand-200 disabled:opacity-30"
+                                        >
+                                            <ChevronRight className="w-5 h-5" />
+                                        </Button>
+                                    </div>
                                 </div>
-                            ))}
-                        </div>
+                            )}
+                        </>
                     )}
                 </div>
             </main>
@@ -350,8 +439,11 @@ export function InventoryClient({ initialProducts, categories, user }: Inventory
             {/* Add Product Modal Overlay */}
             <Dialog open={isAddModalOpen} onOpenChange={setIsAddModalOpen}>
                 <DialogContent className="max-w-5xl p-0 overflow-hidden bg-white rounded-[40px] border-none shadow-2xl h-full max-h-[90vh]">
-                    <DialogHeader className="hidden">
+                    <DialogHeader className="sr-only">
                         <DialogTitle>Add New Product</DialogTitle>
+                        <DialogDescription>
+                            Fill in the details to add a new product to your inventory.
+                        </DialogDescription>
                     </DialogHeader>
                     <AddProductForm
                         categories={categories}

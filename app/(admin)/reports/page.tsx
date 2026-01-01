@@ -14,7 +14,8 @@ export default async function ReportsPage({
         from?: string;
         to?: string;
         userId?: string;
-        paymentType?: string
+        paymentType?: string;
+        page?: string;
     }>;
 }) {
     const session = await auth();
@@ -27,15 +28,21 @@ export default async function ReportsPage({
 
     const resolvedParams = await searchParams;
 
+    const page = resolvedParams.page ? parseInt(resolvedParams.page) : 1;
+    const pageSize = 10;
+
     const filters = {
         startDate: resolvedParams.from ? new Date(resolvedParams.from) : undefined,
         endDate: resolvedParams.to ? new Date(resolvedParams.to) : undefined,
         userId: resolvedParams.userId,
-        paymentType: resolvedParams.paymentType
+        paymentType: resolvedParams.paymentType,
+        page,
+        pageSize
     };
 
     const reportsResult = await getSalesReports(filters);
     const reports = reportsResult.success ? reportsResult.reports : [];
+    const totalReports = reportsResult.success ? (reportsResult as any).totalCount : 0;
 
     // Fetch new report types
     const profitResult = await getProfitAnalysisReport(filters);
@@ -61,6 +68,9 @@ export default async function ReportsPage({
                 profitAnalysis={profitResult.success ? profitResult : null}
                 staffPerformance={staffResult.success ? staffResult : null}
                 inventoryReport={inventoryResult.success ? inventoryResult : null}
+                totalReports={totalReports}
+                currentPage={page}
+                pageSize={pageSize}
             />
         </div>
     );

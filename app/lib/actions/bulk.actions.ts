@@ -7,7 +7,7 @@ import { revalidatePath } from "next/cache";
 export async function bulkCreateProducts(products: any[]) {
     const session = await auth();
     if (!session || (session.user.role !== "ADMIN" && session.user.role !== "MANAGER")) {
-        throw new Error("Unauthorized");
+        return { success: false, error: "Unauthorized: Only admins and managers can create products" };
     }
 
     try {
@@ -19,32 +19,58 @@ export async function bulkCreateProducts(products: any[]) {
         const itemsToCreate = [];
         const errors = [];
 
-        for (const p of products) {
+        for (let i = 0; i < products.length; i++) {
+            const p = products[i];
+            const rowNum = i + 2; // +2 because Excel is 1-indexed and row 1 is headers
+            
             const categoryName = p.Category?.toString().toLowerCase();
             const categoryId = categoryMap.get(categoryName);
 
             if (!categoryId) {
-                errors.push(`Category "${p.Category}" not found for product "${p.Name}"`);
+                errors.push(`Row ${rowNum}: Category "${p.Category}" not found`);
                 continue;
             }
 
             if (!p.Name || !p.Price) {
-                errors.push(`Product name and price are required for "${p.Name || 'Unknown'}"`);
+                errors.push(`Row ${rowNum}: Product name and price are required`);
                 continue;
             }
 
+            // Parse numeric values, treating empty/undefined as truly optional
+            const price = parseFloat(p.Price?.toString());
+            if (isNaN(price) || price < 0) {
+                errors.push(`Row ${rowNum}: Invalid price for "${p.Name}"`);
+                continue;
+            }
+
+            const costPrice = p.CostPrice ? parseFloat(p.CostPrice.toString()) : undefined;
+            const stock = p.Stock ? parseInt(p.Stock.toString()) : 0;
+            const lowStockAlert = p.LowStock ? parseInt(p.LowStock.toString()) : undefined;
+
+            // Check if product is a food item (TRUE/FALSE in Excel)
+            const isFoodItem = p.IsFoodItem 
+                ? p.IsFoodItem.toString().toLowerCase() === 'true' 
+                : false;
+
+            // Generate SKU if not provided
+            const timestamp = Date.now().toString(36).toUpperCase();
+            const random = Math.random().toString(36).substring(2, 6).toUpperCase();
+            const sku = p.SKU?.toString().trim() || `PROD-${timestamp}-${random}`;
+
             itemsToCreate.push({
                 name: p.Name.toString(),
-                sku: p.SKU?.toString() || "",
+                sku,
                 categoryId,
-                price: parseFloat(p.Price.toString()) || 0,
-                costPrice: parseFloat(p.CostPrice?.toString()) || 0,
-                stock: parseInt(p.Stock?.toString()) || 0,
-                lowStockAlert: parseInt(p.LowStock?.toString()) || 0,
+                price,
+                costPrice,
+                stock: isFoodItem ? 0 : stock,  // Food items don't track stock
+                initialStock: isFoodItem ? 0 : stock,
+                lowStockAlert: isFoodItem ? undefined : lowStockAlert,
                 stockUnit: p.Unit?.toString() || "pcs",
-                description: p.Description?.toString() || "",
+                description: p.Description?.toString() || undefined,
                 displayName: p.DisplayName?.toString() || p.Name.toString(),
-                trackInventory: true,
+                trackInventory: !isFoodItem,  // Auto-disable for food items
+                isFoodItem,
                 status: true,
             });
         }
@@ -61,10 +87,19 @@ export async function bulkCreateProducts(products: any[]) {
         return { 
             success: true, 
             count: itemsToCreate.length,
-            errors: errors.length > 0 ? errors : null 
+            errors: errors.length > 0 ? errors : null,
+            message: errors.length > 0 
+                ? `Created ${itemsToCreate.length} products with ${errors.length} errors` 
+                : `Successfully created ${itemsToCreate.length} products`
         };
     } catch (error: any) {
         console.error("Bulk upload error:", error);
-        return { success: false, error: error.message || "Failed to bulk create products" };
+        
+        // Handle Prisma errors
+        if (error.code === "P2002") {
+            return { success: false, error: "Duplicate SKU detected. Please ensure all SKUs are unique." };
+        }
+        
+        return { success: false, error: error.message || "Failed to bulk create products. Please check your data and try again." };
     }
 }
