@@ -1,5 +1,6 @@
 "use client";
 
+import React from "react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Printer, X } from "lucide-react";
@@ -15,126 +16,113 @@ export function ReceiptPrinter({ isOpen, onClose, order }: ReceiptPrinterProps) 
     if (!order) return null;
 
     const handlePrint = () => {
-        const printContent = document.getElementById("receipt-content");
-        if (!printContent) return;
-
-        const printWindow = window.open("", "", "width=800,height=600");
+        const printWindow = window.open("", "", "width=400,height=600");
         if (!printWindow) return;
 
+        printWindow.document.write('<!DOCTYPE html><html><head>');
+        printWindow.document.write('<meta charset="utf-8">');
+        printWindow.document.write(`<title>Receipt ${order.orderNumber}</title>`);
+        printWindow.document.write('<style>');
         printWindow.document.write(`
-            <!DOCTYPE html>
-            <html>
-            <head>
-                <meta charset="utf-8">
-                <title>Receipt ${order.orderNumber}</title>
-                <style>
-                    * { margin: 0; padding: 0; box-sizing: border-box; }
-                    body { font-family: 'Courier New', monospace; width: 80mm; margin: 0 auto; padding: 10px; }
-                    .receipt { width: 100%; }
-                    .header { text-align: center; border-bottom: 2px solid #000; padding-bottom: 10px; margin-bottom: 10px; }
-                    .header h1 { font-size: 18px; font-weight: bold; margin-bottom: 5px; }
-                    .header p { font-size: 12px; color: #666; }
-                    .order-info { font-size: 11px; margin-bottom: 10px; padding-bottom: 10px; border-bottom: 1px dashed #000; }
-                    .order-info div { display: flex; justify-content: space-between; margin-bottom: 3px; }
-                    .items { margin-bottom: 10px; padding-bottom: 10px; border-bottom: 1px dashed #000; font-size: 11px; }
-                    .item-row { display: flex; justify-content: space-between; margin-bottom: 5px; }
-                    .item-desc { flex: 1; }
-                    .item-price { text-align: right; min-width: 60px; }
-                    .totals { margin-bottom: 10px; padding-bottom: 10px; border-bottom: 2px solid #000; font-size: 12px; }
-                    .total-row { display: flex; justify-content: space-between; margin-bottom: 5px; font-weight: bold; }
-                    .total-row.grand { font-size: 14px; margin-top: 5px; }
-                    .payment-method { text-align: center; font-size: 11px; padding: 10px 0; border-bottom: 1px dashed #000; margin-bottom: 10px; }
-                    .footer { text-align: center; font-size: 11px; margin-top: 10px; }
-                    .footer p { margin-bottom: 5px; }
-                </style>
-            </head>
-            <body>
-                <div class="receipt">
-                    <div class="header">
-                        <h1>RECEIPT</h1>
-                        <p>Transaction Receipt</p>
-                    </div>
-                    
-                    <div class="order-info">
-                        <div>
-                            <span>Order ID:</span>
-                            <span>${order.orderNumber}</span>
-                        </div>
-                        <div>
-                            <span>Date:</span>
-                            <span>${new Date(order.createdAt).toLocaleString()}</span>
-                        </div>
-                        <div>
-                            <span>Cashier:</span>
-                            <span>${order.user?.name || "System"}</span>
-                        </div>
-                        ${order.customerName ? `
-                        <div>
-                            <span>Customer:</span>
-                            <span>${order.customerName}</span>
-                        </div>
-                        ` : ""}
-                    </div>
-                    
-                    <div class="items">
-                        <div style="display: flex; justify-content: space-between; margin-bottom: 5px; font-weight: bold; border-bottom: 1px solid #000; padding-bottom: 5px;">
-                            <span style="flex: 1;">Item</span>
-                            <span style="text-align: center; min-width: 40px;">Qty</span>
-                            <span style="text-align: right; min-width: 60px;">Amount</span>
-                        </div>
-                        ${order.items.map((item: any) => `
-                        <div class="item-row">
-                            <div class="item-desc">${item.name}</div>
-                            <div style="text-align: center; min-width: 40px;">${item.quantity}</div>
-                            <div class="item-price">${formatNaira(item.subtotal)}</div>
-                        </div>
-                        `).join("")}
-                    </div>
-                    
-                    <div class="totals">
-                        <div class="total-row">
-                            <span>Subtotal:</span>
-                            <span>${formatNaira(order.subtotal)}</span>
-                        </div>
-                        <div class="total-row">
-                            <span>Tax:</span>
-                            <span>${formatNaira(order.tax)}</span>
-                        </div>
-                        <div class="total-row grand">
-                            <span>TOTAL:</span>
-                            <span>${formatNaira(order.total)}</span>
-                        </div>
-                        ${order.amountTendered ? `
-                        <div class="total-row">
-                            <span>Amount Paid:</span>
-                            <span>${formatNaira(order.amountTendered)}</span>
-                        </div>
-                        ` : ""}
-                        ${order.changeAmount !== undefined && order.changeAmount > 0 ? `
-                        <div class="total-row">
-                            <span>Change:</span>
-                            <span>${formatNaira(order.changeAmount)}</span>
-                        </div>
-                        ` : ""}
-                    </div>
-                    
-                    <div class="payment-method">
-                        Payment Method: <strong>${order.paymentType}</strong>
-                    </div>
-                    
-                    <div class="footer">
-                        <p>Thank you for your purchase!</p>
-                        <p style="font-size: 10px; margin-top: 10px;">Date: ${new Date().toLocaleString()}</p>
-                        <p style="font-size: 10px;">Reprint Receipt</p>
-                    </div>
-                </div>
-            </body>
-            </html>
+            @media print {
+                body { margin: 0; padding: 10px; width: 80mm; font-family: 'Courier New', Courier, monospace; font-size: 12px; }
+                .header { text-align: center; margin-bottom: 15px; }
+                .dashed { border-top: 1px dashed #000; margin: 10px 0; }
+                .row { display: flex; justify-content: space-between; margin-bottom: 3px; }
+                .item-row { display: flex; justify-content: space-between; margin-bottom: 5px; font-style: italic; }
+                .total-row { display: flex; justify-content: space-between; font-weight: bold; }
+                .footer { text-align: center; font-weight: bold; margin-top: 20px; }
+            }
         `);
+        printWindow.document.write('</style></head><body>');
+
+        // Header
+        printWindow.document.write('<div class="header">');
+        printWindow.document.write('<h3 style="font-size: 18px; font-weight: bold; margin: 0 0 5px 0;">Eres Place</h3>');
+        printWindow.document.write('<p style="margin: 2px 0; font-size: 11px;">111, Irhirhi Road By Ashland Hotel Junction</p>');
+        printWindow.document.write('<p style="margin: 2px 0; font-size: 11px;">Off Airport road, Benin city</p>');
+        printWindow.document.write('<p style="margin: 2px 0; font-size: 11px;">Tel: 09060958968</p>');
+        printWindow.document.write('</div>');
+
+        printWindow.document.write('<div class="dashed"></div>');
+
+        // Order Info
+        printWindow.document.write('<div style="margin-bottom: 10px;">');
+        printWindow.document.write(`<div class="row"><span>DATE:</span><span>${new Date(order.createdAt).toLocaleString()}</span></div>`);
+        printWindow.document.write(`<div class="row"><span>ORDER:</span><span style="text-transform: uppercase;">${order.orderNumber}</span></div>`);
+        printWindow.document.write(`<div class="row"><span>CASHIER:</span><span style="text-transform: uppercase;">${order.user?.name || "System"}</span></div>`);
+        if (order.customerName) {
+            printWindow.document.write(`<div class="row"><span>CUSTOMER:</span><span style="text-transform: uppercase;">${order.customerName}</span></div>`);
+        }
+        if (order.tableNumber) {
+            printWindow.document.write(`<div class="row"><span>TABLE:</span><span style="text-transform: uppercase;">${order.tableNumber}</span></div>`);
+        }
+        printWindow.document.write('</div>');
+
+        printWindow.document.write('<div class="dashed"></div>');
+
+        // Items
+        printWindow.document.write('<div style="margin-bottom: 10px;">');
+        order.items.forEach((item: any) => {
+            printWindow.document.write('<div class="item-row">');
+            printWindow.document.write('<div style="flex: 1;">');
+            printWindow.document.write(`<div>${item.name}</div>`);
+            printWindow.document.write(`<div style="font-size: 10px;">${item.quantity} x ${formatNaira(item.price)}</div>`);
+            printWindow.document.write('</div>');
+            printWindow.document.write(`<span style="font-weight: bold;">${formatNaira(item.subtotal)}</span>`);
+            printWindow.document.write('</div>');
+        });
+        printWindow.document.write('</div>');
+
+        printWindow.document.write('<div class="dashed"></div>');
+
+        // Totals
+        printWindow.document.write('<div style="margin-bottom: 10px;">');
+        printWindow.document.write(`<div class="row"><span>SUBTOTAL:</span><span>${formatNaira(order.subtotal)}</span></div>`);
+        printWindow.document.write(`<div class="row"><span>TAX:</span><span>${formatNaira(order.tax)}</span></div>`);
+        printWindow.document.write(`<div class="total-row" style="font-size: 14px; margin-top: 5px;"><span>TOTAL:</span><span>${formatNaira(order.total)}</span></div>`);
+        printWindow.document.write('</div>');
+
+        printWindow.document.write('<div class="dashed"></div>');
+
+        // Payment
+        printWindow.document.write('<div style="margin-bottom: 10px; text-transform: uppercase; font-weight: bold; font-size: 11px;">');
+        printWindow.document.write(`<div class="row"><span>PAYMENT TYPE:</span><span>${order.paymentType}</span></div>`);
+        if (order.amountTendered) {
+            printWindow.document.write(`<div class="row"><span>TENDERED:</span><span>${formatNaira(order.amountTendered)}</span></div>`);
+        }
+        if (order.changeAmount !== undefined && order.changeAmount > 0) {
+            printWindow.document.write(`<div class="row"><span>CHANGE:</span><span>${formatNaira(order.changeAmount)}</span></div>`);
+        }
+        printWindow.document.write('</div>');
+
+        printWindow.document.write('<div class="dashed"></div>');
+        printWindow.document.write('<div class="dashed"></div>');
+
+        // Footer
+        printWindow.document.write('<div class="footer">');
+        printWindow.document.write('<p style="margin: 5px 0;">THANK YOU FOR YOUR PATRONAGE!</p>');
+        printWindow.document.write('<p style="font-size: 10px; opacity: 0.5; margin-top: 10px;">Powered by Ktcstocks POS + Inventory</p>');
+        printWindow.document.write('</div>');
+
+        printWindow.document.write('</body></html>');
         printWindow.document.close();
-        printWindow.print();
-        printWindow.close();
+        printWindow.focus();
+        setTimeout(() => {
+            printWindow.print();
+            printWindow.close();
+        }, 250);
     };
+
+    // Auto-print when dialog opens
+    React.useEffect(() => {
+        if (isOpen && order) {
+            const timer = setTimeout(() => {
+                handlePrint();
+            }, 500);
+            return () => clearTimeout(timer);
+        }
+    }, [isOpen, order]);
 
     return (
         <Dialog open={isOpen} onOpenChange={onClose}>
@@ -151,89 +139,96 @@ export function ReceiptPrinter({ isOpen, onClose, order }: ReceiptPrinterProps) 
                     </Button>
                 </DialogHeader>
 
-                <div id="receipt-content" className="receipt-preview bg-white p-8 border border-gray-200 rounded-lg print:border-none print:p-0">
+                <div id="receipt-content" className="receipt-preview bg-white p-8 border border-gray-200 rounded-lg">
                     {/* Receipt Header */}
-                    <div className="text-center border-b-2 border-black pb-4 mb-4">
-                        <h1 className="text-2xl font-black">RECEIPT</h1>
-                        <p className="text-gray-600 text-sm">Transaction Receipt</p>
+                    <div className="text-center border-b-2 border-gray-300 pb-4 mb-4">
+                        <h1 className="text-2xl font-black">Eres Place</h1>
+                        <p className="text-sm text-gray-600">111, Irhirhi Road By Ashland Hotel Junction</p>
+                        <p className="text-sm text-gray-600">Off Airport road, Benin city</p>
+                        <p className="text-sm text-gray-600">Tel: 09060958968</p>
                     </div>
 
                     {/* Order Info */}
-                    <div className="text-sm mb-4 pb-4 border-b border-dashed">
+                    <div className="text-sm mb-4 pb-4 border-b border-dashed font-mono">
                         <div className="flex justify-between mb-2">
-                            <span>Order ID:</span>
-                            <span className="font-bold">{order.orderNumber}</span>
-                        </div>
-                        <div className="flex justify-between mb-2">
-                            <span>Date:</span>
+                            <span className="font-bold">DATE:</span>
                             <span>{new Date(order.createdAt).toLocaleString()}</span>
                         </div>
                         <div className="flex justify-between mb-2">
-                            <span>Cashier:</span>
-                            <span>{order.user?.name || "System"}</span>
+                            <span className="font-bold">ORDER:</span>
+                            <span className="font-bold uppercase">{order.orderNumber}</span>
+                        </div>
+                        <div className="flex justify-between mb-2">
+                            <span className="font-bold">CASHIER:</span>
+                            <span className="uppercase">{order.user?.name || "System"}</span>
                         </div>
                         {order.customerName && (
+                            <div className="flex justify-between mb-2">
+                                <span className="font-bold">CUSTOMER:</span>
+                                <span className="uppercase">{order.customerName}</span>
+                            </div>
+                        )}
+                        {order.tableNumber && (
                             <div className="flex justify-between">
-                                <span>Customer:</span>
-                                <span>{order.customerName}</span>
+                                <span className="font-bold">TABLE:</span>
+                                <span className="uppercase">{order.tableNumber}</span>
                             </div>
                         )}
                     </div>
 
                     {/* Items */}
-                    <div className="mb-4 pb-4 border-b border-dashed">
-                        <div className="flex justify-between font-bold mb-2 pb-2 border-b">
-                            <span className="flex-1">Item</span>
-                            <span className="w-16 text-center">Qty</span>
-                            <span className="w-24 text-right">Amount</span>
-                        </div>
+                    <div className="mb-4 pb-4 border-b border-dashed font-mono text-sm">
                         {order.items.map((item: any) => (
-                            <div key={item.id} className="flex justify-between text-sm mb-2">
-                                <span className="flex-1">{item.name}</span>
-                                <span className="w-16 text-center">{item.quantity}</span>
-                                <span className="w-24 text-right">{formatNaira(item.subtotal)}</span>
+                            <div key={item.id} className="flex justify-between mb-3 italic">
+                                <div className="flex-1">
+                                    <div className="font-semibold">{item.name}</div>
+                                    <div className="text-xs text-gray-600">{item.quantity} x {formatNaira(item.price)}</div>
+                                </div>
+                                <span className="font-bold">{formatNaira(item.subtotal)}</span>
                             </div>
                         ))}
                     </div>
 
                     {/* Totals */}
-                    <div className="mb-4 pb-4 border-b-2 border-black space-y-1">
+                    <div className="mb-4 pb-4 border-b-2 border-black font-mono space-y-1">
                         <div className="flex justify-between text-sm">
-                            <span>Subtotal:</span>
+                            <span>SUBTOTAL:</span>
                             <span>{formatNaira(order.subtotal)}</span>
                         </div>
                         <div className="flex justify-between text-sm">
-                            <span>Tax:</span>
+                            <span>TAX:</span>
                             <span>{formatNaira(order.tax)}</span>
                         </div>
                         <div className="flex justify-between text-lg font-black mt-2 pt-2">
                             <span>TOTAL:</span>
                             <span>{formatNaira(order.total)}</span>
                         </div>
+                    </div>
+
+                    {/* Payment */}
+                    <div className="mb-4 pb-4 border-b border-dashed font-mono text-sm font-bold uppercase">
+                        <div className="flex justify-between mb-1">
+                            <span>PAYMENT TYPE:</span>
+                            <span>{order.paymentType}</span>
+                        </div>
                         {order.amountTendered && (
-                            <div className="flex justify-between text-sm mt-2 pt-2 border-t">
-                                <span>Amount Paid:</span>
+                            <div className="flex justify-between mb-1">
+                                <span>TENDERED:</span>
                                 <span>{formatNaira(order.amountTendered)}</span>
                             </div>
                         )}
                         {order.changeAmount !== undefined && order.changeAmount > 0 && (
-                            <div className="flex justify-between text-sm font-bold">
-                                <span>Change:</span>
+                            <div className="flex justify-between">
+                                <span>CHANGE:</span>
                                 <span>{formatNaira(order.changeAmount)}</span>
                             </div>
                         )}
                     </div>
 
-                    {/* Payment Method */}
-                    <div className="text-center mb-4 pb-4 border-b border-dashed">
-                        <span className="text-sm">Payment Method: </span>
-                        <span className="font-bold">{order.paymentType}</span>
-                    </div>
-
                     {/* Footer */}
-                    <div className="text-center text-sm">
-                        <p className="font-bold mb-2">Thank you for your purchase!</p>
-                        <p className="text-xs text-gray-600">Reprint on: {new Date().toLocaleString()}</p>
+                    <div className="text-center font-black font-mono">
+                        <p className="text-sm">THANK YOU FOR YOUR PATRONAGE!</p>
+                        <p className="text-xs text-gray-400 mt-2">Powered by Ktcstocks POS + Inventory</p>
                     </div>
                 </div>
 
@@ -243,7 +238,7 @@ export function ReceiptPrinter({ isOpen, onClose, order }: ReceiptPrinterProps) 
                         className="flex-1 rounded-lg h-11 bg-brand-500 hover:bg-brand-600 text-white font-bold"
                     >
                         <Printer className="w-4 h-4 mr-2" />
-                        Print Receipt
+                        Print Again
                     </Button>
                     <Button
                         onClick={onClose}

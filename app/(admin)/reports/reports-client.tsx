@@ -29,6 +29,8 @@ import Link from "next/link";
 import { cn } from "@/lib/utils";
 import { ReceiptPrinter } from "@/components/reports/receipt-printer";
 import { ProfitByProductChart, PaymentMethodChart, StaffPerformanceChart } from "@/components/reports/charts";
+import { useRouter, useSearchParams } from "next/navigation";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 
 interface ReportsClientProps {
     initialReports: any[];
@@ -37,15 +39,44 @@ interface ReportsClientProps {
     profitAnalysis?: any;
     staffPerformance?: any;
     inventoryReport?: any;
+    totalReports: number;
+    currentPage: number;
+    pageSize: number;
 }
 
-export function ReportsClient({ initialReports, staff, currentUser, profitAnalysis, staffPerformance, inventoryReport }: ReportsClientProps) {
+export function ReportsClient({
+    initialReports,
+    staff,
+    currentUser,
+    profitAnalysis,
+    staffPerformance,
+    inventoryReport,
+    totalReports,
+    currentPage,
+    pageSize
+}: ReportsClientProps) {
     const [activeTab, setActiveTab] = useState<"sales" | "stock" | "profit" | "staff" | "inventory">("sales");
     const [searchQuery, setSearchQuery] = useState("");
     const [selectedStaff, setSelectedStaff] = useState("all");
     const [selectedPayment, setSelectedPayment] = useState("all");
     const [selectedReceipt, setSelectedReceipt] = useState<any>(null);
     const [showReceiptPrinter, setShowReceiptPrinter] = useState(false);
+
+    const router = useRouter();
+    const searchParams = useSearchParams();
+
+    const setPage = (page: number) => {
+        const params = new URLSearchParams(searchParams.toString());
+        params.set("page", page.toString());
+        router.push(`/reports?${params.toString()}`, { scroll: false });
+    };
+
+    const handleFilterChange = (key: string, value: string) => {
+        const params = new URLSearchParams(searchParams.toString());
+        params.set(key, value);
+        params.set("page", "1"); // Reset to page 1 on filter change
+        router.push(`/reports?${params.toString()}`, { scroll: false });
+    };
 
     // Filter logic for sales
     const filteredReports = useMemo(() => {
@@ -257,7 +288,10 @@ export function ReportsClient({ initialReports, staff, currentUser, profitAnalys
                             <div className="flex flex-wrap items-center gap-3">
                                 <select
                                     value={selectedStaff}
-                                    onChange={(e) => setSelectedStaff(e.target.value)}
+                                    onChange={(e) => {
+                                        setSelectedStaff(e.target.value);
+                                        handleFilterChange("userId", e.target.value);
+                                    }}
                                     className="h-12 px-4 rounded-2xl border border-gray-100 bg-gray-50/50 text-sm font-bold outline-none cursor-pointer"
                                 >
                                     <option value="all">Every Staff</option>
@@ -268,7 +302,10 @@ export function ReportsClient({ initialReports, staff, currentUser, profitAnalys
 
                                 <select
                                     value={selectedPayment}
-                                    onChange={(e) => setSelectedPayment(e.target.value)}
+                                    onChange={(e) => {
+                                        setSelectedPayment(e.target.value);
+                                        handleFilterChange("paymentType", e.target.value);
+                                    }}
                                     className="h-12 px-4 rounded-2xl border border-gray-100 bg-gray-50/50 text-sm font-bold outline-none cursor-pointer"
                                 >
                                     <option value="all">All Payments</option>
@@ -423,6 +460,67 @@ export function ReportsClient({ initialReports, staff, currentUser, profitAnalys
                                     )}
                                 </tbody>
                             </table>
+                        </div>
+
+                        {/* Pagination UI */}
+                        <div className="p-6 border-t border-gray-50 bg-gray-50/20 flex flex-col sm:flex-row items-center justify-between gap-4">
+                            <div className="text-xs font-black text-gray-400 uppercase tracking-widest">
+                                Showing {Math.min((currentPage - 1) * pageSize + 1, totalReports)} - {Math.min(currentPage * pageSize, totalReports)} of {totalReports} Sales
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <Button
+                                    variant="outline"
+                                    size="icon"
+                                    onClick={() => setPage(currentPage - 1)}
+                                    disabled={currentPage <= 1}
+                                    className="h-10 w-10 rounded-xl border-gray-200"
+                                >
+                                    <ChevronLeft className="w-4 h-4" />
+                                </Button>
+
+                                <div className="flex items-center gap-1">
+                                    {Array.from({ length: Math.ceil(totalReports / pageSize) }).map((_, i) => {
+                                        const pageNum = i + 1;
+                                        // Show first, last, and pages around current
+                                        if (
+                                            pageNum === 1 ||
+                                            pageNum === Math.ceil(totalReports / pageSize) ||
+                                            (pageNum >= currentPage - 1 && pageNum <= currentPage + 1)
+                                        ) {
+                                            return (
+                                                <button
+                                                    key={pageNum}
+                                                    onClick={() => setPage(pageNum)}
+                                                    className={cn(
+                                                        "h-10 min-w-[40px] px-2 rounded-xl text-xs font-black transition-all",
+                                                        currentPage === pageNum
+                                                            ? "bg-brand-500 text-white shadow-lg shadow-brand-200"
+                                                            : "bg-white text-gray-400 hover:bg-gray-50 border border-gray-100"
+                                                    )}
+                                                >
+                                                    {pageNum}
+                                                </button>
+                                            );
+                                        } else if (
+                                            pageNum === currentPage - 2 ||
+                                            pageNum === currentPage + 2
+                                        ) {
+                                            return <span key={pageNum} className="px-1 text-gray-300">...</span>;
+                                        }
+                                        return null;
+                                    })}
+                                </div>
+
+                                <Button
+                                    variant="outline"
+                                    size="icon"
+                                    onClick={() => setPage(currentPage + 1)}
+                                    disabled={currentPage >= Math.ceil(totalReports / pageSize)}
+                                    className="h-10 w-10 rounded-xl border-gray-200"
+                                >
+                                    <ChevronRight className="w-4 h-4" />
+                                </Button>
+                            </div>
                         </div>
                     </>
                 ) : activeTab === "profit" ? (
@@ -698,7 +796,7 @@ export function ReportsClient({ initialReports, staff, currentUser, profitAnalys
     );
 }
 
-function AnalyticCard({title, value, icon: Icon, color, subtitle }: any) {
+function AnalyticCard({ title, value, icon: Icon, color, subtitle }: any) {
     return (
         <div className="bg-white p-8 rounded-[2rem] border border-gray-100 shadow-sm relative overflow-hidden group hover:shadow-xl transition-all duration-300">
             <div className={cn("absolute top-0 right-0 w-32 h-32 opacity-[0.03] -mr-8 -mt-8 rounded-full", color)} />

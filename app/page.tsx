@@ -6,9 +6,11 @@ import { DashboardStats } from "@/components/dashboard/stat-cards"
 import { SalesReportTable } from "@/components/dashboard/sales-report-table"
 import { RightSidebarDashboard } from "@/components/dashboard/right-sidebar"
 import { Button } from "@/components/ui/button"
+import { HeldOrdersCard } from "@/components/dashboard/held-orders-card"
 import { Calendar, Plus, BarChart3 } from "lucide-react"
+import { HourlySalesChart } from "@/components/dashboard/hourly-sales-chart"
 import { getDashboardStats, getSalesReports } from "@/app/lib/actions/order.actions"
-import { getHourlyPerformance, getStockAlerts, getPopularItems } from "@/app/lib/actions/inventory.actions"
+import { getStockAlerts, getPopularItems } from "@/app/lib/actions/inventory.actions"
 
 export default async function DashboardPage() {
   const session = await auth()
@@ -18,13 +20,13 @@ export default async function DashboardPage() {
   const reportsResult = await getSalesReports({
     startDate: new Date(new Date().setHours(0, 0, 0, 0))
   })
-  const hourlyResult = await getHourlyPerformance()
+  // const hourlyResult = await getHourlyPerformance() // Moved to client
   const alertsResult = await getStockAlerts()
   const popularResult = await getPopularItems()
 
   const stats = statsResult.success ? statsResult.stats : null
   const reports = reportsResult.success ? reportsResult.reports : []
-  const hourlyData: any[] = hourlyResult.success ? (hourlyResult as any).data : []
+  // const hourlyData: any[] = hourlyResult.success ? (hourlyResult as any).data : []
   const stockAlerts = alertsResult.success ? alertsResult.alerts : []
   const popularItems = popularResult.success ? popularResult.items : []
 
@@ -86,56 +88,14 @@ export default async function DashboardPage() {
           <div className="grid grid-cols-1 xl:grid-cols-3 gap-8">
             <div className="xl:col-span-2 space-y-8">
               {/* Sales Chart Placeholder */}
-              <div className="bg-white p-8 rounded-3xl border border-gray-100 shadow-sm h-80 flex flex-col">
-                <div className="flex justify-between items-start mb-6">
-                  <div>
-                    <h3 className="text-xl font-black text-gray-900">Hourly Sales Performance</h3>
-                    <p className="text-sm text-gray-400 mt-1">Visualizing demand peaks today</p>
-                  </div>
-                  <select className="bg-gray-50 border-none rounded-xl text-xs font-bold px-3 py-2 outline-none cursor-pointer">
-                    <option>Today</option>
-                    <option>Yesterday</option>
-                  </select>
-                </div>
-                <div className="flex-1 flex items-end gap-2 pb-2">
-                  {/* Real Data Bar Chart */}
-                  {hourlyData.length > 0 ? (
-                    (() => {
-                      const maxRevenue = Math.max(...hourlyData.map(d => d.revenue), 1);
-                      return hourlyData.map((data, i) => {
-                        const height = (data.revenue / maxRevenue) * 100 || 10;
-                        return (
-                          <div key={i} className="flex-1 bg-brand-50 rounded-t-lg relative group transition-all hover:bg-brand-100" style={{ height: `${height}%` }}>
-                            <div className="absolute -top-10 left-1/2 -translate-x-1/2 bg-gray-900 text-white text-[10px] font-bold px-2 py-1 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
-                              ₦{data.revenue.toLocaleString('en-US', { maximumFractionDigits: 0 })}
-                            </div>
-                          </div>
-                        );
-                      });
-                    })()
-                  ) : (
-                    [40, 60, 45, 90, 65, 80, 55, 70].map((h, i) => (
-                      <div key={i} className="flex-1 bg-gray-100 rounded-t-lg relative group transition-all hover:bg-gray-200" style={{ height: `${h}%` }}>
-                        <div className="absolute -top-10 left-1/2 -translate-x-1/2 bg-gray-900 text-white text-[10px] font-bold px-2 py-1 rounded-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap">
-                          No data
-                        </div>
-                      </div>
-                    ))
-                  )}
-                </div>
-                <div className="flex justify-between mt-4 px-2 text-[10px] font-bold text-gray-400 uppercase tracking-widest">
-                  <span>10am</span>
-                  <span>12pm</span>
-                  <span>2pm</span>
-                  <span>4pm</span>
-                </div>
-              </div>
+              <HourlySalesChart />
 
               <SalesReportTable reports={reports} />
             </div>
 
             <div className="xl:col-span-1">
               <RightSidebarDashboard stockAlerts={stockAlerts} popularItems={popularItems} />
+              <HeldOrdersCard />
             </div>
           </div>
         </div>

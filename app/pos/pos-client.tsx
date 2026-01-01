@@ -30,14 +30,16 @@ import {
     DialogContent,
     DialogHeader,
     DialogTitle,
+    DialogDescription,
     DialogFooter
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { cn } from "@/lib/utils";
 import { useSession, signOut } from "next-auth/react";
 import { formatNaira, formatNumber } from "@/lib/utils/format";
-import { createOrder, getPendingOrders, deleteOrder } from "@/app/lib/actions/order.actions";
+import { createOrder, getPendingOrders, deleteOrder, finalizeOrder, createAndFinalizeOrder } from "@/app/lib/actions/order.actions";
 import { toast } from "sonner";
+
 
 interface Product {
     id: string;
@@ -50,6 +52,8 @@ interface Product {
     stock: number;
     stockUnit?: string;
     displayColor?: string;
+    trackInventory?: boolean;
+    isFoodItem?: boolean;
 }
 
 interface CartItem {
@@ -75,9 +79,13 @@ export function POSClient({ products, categories: initialCategories, session: se
 
     // Checkout States
     const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
-    const [paymentType, setPaymentType] = useState<"CASH" | "CARD" | "TRANSFER">("CASH");
+    const [paymentType, setPaymentType] = useState<"CASH" | "CARD" | "TRANSFER" | "OTHER">("CASH");
     const [amountTendered, setAmountTendered] = useState<string>("");
+    const [payments, setPayments] = useState<{ method: "CASH" | "CARD" | "TRANSFER" | "OTHER"; amount: number; reference?: string }[]>([]);
     const [isProcessing, setIsProcessing] = useState(false);
+
+    // Order info
+    const [tableNumber, setTableNumber] = useState("");
 
     // Receipt States
     const [isReceiptOpen, setIsReceiptOpen] = useState(false);
@@ -88,6 +96,7 @@ export function POSClient({ products, categories: initialCategories, session: se
     const [customerName, setCustomerName] = useState("");
     const [isPendingOrdersOpen, setIsPendingOrdersOpen] = useState(false);
     const [pendingOrders, setPendingOrders] = useState<any[]>([]);
+    const [selectedNote, setSelectedNote] = useState<string | null>(null);
 
     // User Menu State
     const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
@@ -103,13 +112,117 @@ export function POSClient({ products, categories: initialCategories, session: se
         }
     };
 
+    // Poll for held orders every 30 seconds
+    useEffect(() => {
+        const interval = setInterval(fetchPendingOrders, 30000);
+        return () => clearInterval(interval);
+    }, []);
+
+    // Offline & Sync State
+    const [isOnline, setIsOnline] = useState(true);
+    const [pointsQueue, setPointsQueue] = useState<any[]>([]);
+
+    useEffect(() => {
+        // Initial check
+        setIsOnline(navigator.onLine);
+
+        const handleOnline = () => {
+            setIsOnline(true);
+            toast.success("Back online!");
+            syncOfflineOrders();
+        };
+        const handleOffline = () => {
+            setIsOnline(false);
+            toast.warning("You are offline. Orders will be saved locally.");
+        };
+
+        window.addEventListener("online", handleOnline);
+        window.addEventListener("offline", handleOffline);
+
+        // Load queue
+        const savedQueue = localStorage.getItem("pos_queue");
+        if (savedQueue) {
+            try {
+                setPointsQueue(JSON.parse(savedQueue));
+            } catch (e) { console.error("Failed to parse queue", e); }
+        }
+
+        return () => {
+            window.removeEventListener("online", handleOnline);
+            window.removeEventListener("offline", handleOffline);
+        };
+    }, []);
+
+    const syncOfflineOrders = async () => {
+        const queueRaw = localStorage.getItem("pos_queue");
+        if (!queueRaw) return;
+
+        let queue: any[] = [];
+        try {
+            queue = JSON.parse(queueRaw);
+        } catch { return; }
+
+        if (queue.length === 0) return;
+
+        toast.loading(`Syncing ${queue.length} offline orders...`);
+
+        let syncedCount = 0;
+        let failedCount = 0;
+        const newQueue: any[] = [];
+
+        for (const orderRequest of queue) {
+            try {
+                // Determine if we need to call createOrder or finalizeOrder or both.
+                // For simplicity, we queue the *entire payload* needed to recreate the transaction.
+                // But `handleSaveOrder` logic is complex.
+                // Better strategy: Queue the `cart`, `payment` details, etc. and re-run the logic? No, too brittle.
+                // Best strategy: Queue the `createOrder` data.
+
+                // If the order was just "Held" (PENDING), we just create it.
+                // If it was "Completed", we create AND finalize.
+
+                // Let's assume queue items have: { type: 'CREATE_AND_FINALIZE', data: ..., payments: ... }
+
+                if (orderRequest.type === 'FULL_ORDER') {
+                    if (orderRequest.finalStatus === 'COMPLETED') {
+                        // Atomic sync
+                        const result = await createAndFinalizeOrder({
+                            orderData: orderRequest.data,
+                            payments: orderRequest.payments
+                        });
+                        if (!result.success) throw new Error(result.error);
+                    } else {
+                        // Just Pending
+                        const result = await createOrder(orderRequest.data);
+                        if (!result.success) throw new Error(result.error);
+                    }
+                    syncedCount++;
+                }
+            } catch (error) {
+                console.error("Sync failed for order", error);
+                failedCount++;
+                newQueue.push(orderRequest); // Keep in queue
+            }
+        }
+
+        setPointsQueue(newQueue);
+        localStorage.setItem("pos_queue", JSON.stringify(newQueue));
+
+        if (syncedCount > 0) toast.success(`Synced ${syncedCount} orders`);
+        if (failedCount > 0) toast.error(`Failed to sync ${failedCount} orders`);
+    };
+
+
+
     const categories = ["All Items", ...initialCategories.map(c => c.name)];
 
     const filteredItems = useMemo(() => {
         return products.filter(item => {
             const matchesCategory = selectedCategory === "All Items" || item.category.name === selectedCategory;
             const matchesSearch = item.name.toLowerCase().includes(searchQuery.toLowerCase());
-            return matchesCategory && matchesSearch && item.stock > 0;
+            // Show food items (trackInventory=false) or items with stock > 0
+            const isAvailable = !item.trackInventory || item.stock > 0;
+            return matchesCategory && matchesSearch && isAvailable;
         });
     }, [products, selectedCategory, searchQuery]);
 
@@ -142,9 +255,9 @@ export function POSClient({ products, categories: initialCategories, session: se
         setCart(prev => prev.map(i => {
             if (i.id === id) {
                 const newQty = Math.max(1, i.quantity + delta);
-                // Check stock limit
+                // Check stock limit only for items that track inventory
                 const product = products.find(p => p.id === i.productId);
-                if (product && newQty > product.stock) {
+                if (product && product.trackInventory && newQty > product.stock) {
                     toast.error(`Only ${product.stock} ${product.stockUnit || 'units'} available`);
                     return i;
                 }
@@ -157,59 +270,130 @@ export function POSClient({ products, categories: initialCategories, session: se
     const handleSaveOrder = async (status: "PENDING" | "COMPLETED" = "COMPLETED") => {
         if (cart.length === 0) return;
 
-        // If holding order, ensure name is provided
-        if (status === "PENDING" && !customerName) {
+        // If holding order, ensure name or table is provided
+        if (status === "PENDING" && !customerName && !tableNumber) {
             setIsHoldModalOpen(true);
             return;
         }
 
-        // For completed orders, validate payment
-        if (status === "COMPLETED" && paymentType === "CASH") {
-            const tendered = parseFloat(amountTendered || "0");
-            if (tendered < total) {
-                toast.error("Amount tendered is less than total");
-                return;
+        setIsProcessing(true);
+
+        // Prepare Order Data
+        const orderData = {
+            items: cart.map(item => ({
+                productId: item.productId,
+                name: item.name,
+                quantity: item.quantity,
+                price: item.price,
+                subtotal: item.price * item.quantity
+            })),
+            subtotal,
+            tax,
+            total,
+            tableNumber: tableNumber || undefined,
+            customerName: customerName || undefined,
+            notes: undefined
+        };
+
+        // Prepare Payments (if completing)
+        let finalPayments: any[] = [];
+        if (status === "COMPLETED") {
+            finalPayments = payments;
+            if (finalPayments.length === 0) {
+                const tendered = parseFloat(amountTendered || total.toString());
+                finalPayments = [{ method: paymentType, amount: tendered }];
             }
         }
 
-        setIsProcessing(true);
-        try {
-            const orderData = {
-                items: cart.map(item => ({
-                    productId: item.productId,
-                    name: item.name,
-                    quantity: item.quantity,
-                    price: item.price,
-                    subtotal: item.price * item.quantity
-                })),
-                subtotal,
-                tax,
-                total,
-                paymentType,
-                amountTendered: parseFloat(amountTendered || total.toString()),
-                changeAmount: Math.max(0, parseFloat(amountTendered || total.toString()) - total),
-                status,
-                customerName: customerName || undefined
-            };
+        const offlinePayload = {
+            type: 'FULL_ORDER',
+            data: orderData,
+            payments: finalPayments,
+            finalStatus: status,
+            tempId: Date.now().toString(), // For keying if needed
+            timestamp: new Date().toISOString()
+        };
 
+        const saveToQueue = () => {
+            const newQueue = [...pointsQueue, offlinePayload];
+            setPointsQueue(newQueue);
+            localStorage.setItem("pos_queue", JSON.stringify(newQueue));
+
+            // Simulate Success UI
+            toast.warning("Offline: Order saved to queue");
+            setCart([]);
+            setAmountTendered("");
+            setCustomerName("");
+            setTableNumber("");
+            setPayments([]);
+            setIsCheckoutOpen(false);
+            setIsHoldModalOpen(false);
+            // Don't modify pendingOrders as we can't fetch real ID yet
+        };
+
+        // 1. Check Offline Mode explicitly
+        if (!isOnline) {
+            saveToQueue();
+            setIsProcessing(false);
+            return;
+        }
+
+        try {
+            // 2. Try Online
             const result = await createOrder(orderData);
-            if (result.success) {
-                toast.success(status === "COMPLETED" ? "Sale completed!" : "Order saved!");
-                setLastOrder(result.order);
-                setCart([]);
-                setAmountTendered("");
-                setCustomerName("");
-                setIsCheckoutOpen(false);
-                setIsHoldModalOpen(false);
-                fetchPendingOrders();
-                if (status === "COMPLETED") {
-                    setIsReceiptOpen(true);
-                }
-            } else {
-                toast.error(result.error || "Failed to save order");
+
+            if (!result.success) {
+                throw new Error(result.error);
             }
-        } catch (error) {
-            toast.error("Something went wrong");
+
+            const order = result.order;
+
+            // 3. If completing, finalize
+            if (status === "COMPLETED") {
+                const finalizeResult = await finalizeOrder(order.id, finalPayments);
+                if (!finalizeResult.success) {
+                    // If finalize fails but create worked... tricky. 
+                    // Ideally we revert or queue the finalize part. 
+                    // For simplicity, we error out and let user retry? 
+                    // OR we queue properly.
+                    throw new Error("Finalize failed: " + finalizeResult.error);
+                }
+
+                setLastOrder(finalizeResult.order);
+                toast.success("Sale completed!");
+                setIsReceiptOpen(true);
+
+                // Auto-print receipt after a short delay
+                setTimeout(() => {
+                    printReceipt();
+                }, 500);
+            } else {
+                toast.success("Order sent to kitchen!");
+            }
+
+            // Success Reset
+            setCart([]);
+            setAmountTendered("");
+            setCustomerName("");
+            setTableNumber("");
+            setPayments([]);
+            setIsCheckoutOpen(false);
+            setIsHoldModalOpen(false);
+            fetchPendingOrders();
+
+        } catch (error: any) {
+            console.error("Order Error:", error);
+            // Check for network errors to fallback to queue
+            const isNetworkError = error.message?.includes("Transaction") ||
+                error.message?.includes("timeout") ||
+                error.message?.includes("fetch");
+
+            if (isNetworkError) {
+                toast.error("Network failed. Saving offline.");
+                saveToQueue();
+            } else {
+                toast.error(error.message || "Something went wrong");
+            }
         } finally {
             setIsProcessing(false);
         }
@@ -251,12 +435,14 @@ export function POSClient({ products, categories: initialCategories, session: se
 
     const printReceipt = () => {
         const printContent = document.getElementById("thermal-receipt");
-        if (!printContent) return;
+        if (!printContent || !lastOrder) return;
 
-        const printWindow = window.open('', '', 'width=400,height=600');
+        const printWindow = window.open("", "", "width=400,height=600");
         if (!printWindow) return;
 
-        printWindow.document.write('<html><head><title>Receipt</title>');
+        printWindow.document.write('<!DOCTYPE html><html><head>');
+        printWindow.document.write('<meta charset="utf-8">');
+        printWindow.document.write(`<title>Receipt ${lastOrder.orderNumber}</title>`);
         printWindow.document.write('<style>');
         printWindow.document.write(`
             @media print {
@@ -266,12 +452,68 @@ export function POSClient({ products, categories: initialCategories, session: se
                 .dashed { border-top: 1px dashed #000; margin: 10px 0; }
                 .item-row { display: flex; justify-content: space-between; margin-bottom: 5px; }
                 .total-row { display: flex; justify-content: space-between; font-weight: bold; font-size: 14px; margin-top: 5px; }
-                .header { margin-bottom: 15px; }
-                .footer { margin-top: 20px; text-align: center; font-style: italic; }
+                .header { margin-bottom: 15px; text-align: center; }
+                .footer { margin-top: 20px; text-align: center; font-weight: bold; }
+                .row { display: flex; justify-content: space-between; margin-bottom: 3px; }
+                .bold { font-weight: bold; }
+                .uppercase { text-transform: uppercase; }
+                .italic { font-style: italic; }
             }
         `);
         printWindow.document.write('</style></head><body>');
-        printWindow.document.write(printContent.innerHTML);
+
+        // We build the HTML manually to ensure it's not affected by Tailwind removal in print
+        let html = `
+            <div class="header">
+                <h3 style="font-size: 18px; font-weight: bold; margin: 0 0 5px 0;">Eres Place</h3>
+                <p style="margin: 2px 0; font-size: 11px;">111, Irhirhi Road By Ashland Hotel Junction</p>
+                <p style="margin: 2px 0; font-size: 11px;">Off Airport road, Benin city</p>
+                <p style="margin: 2px 0; font-size: 11px;">Tel: 09060958968</p>
+            </div>
+            <div class="dashed"></div>
+            <div style="margin-bottom: 10px;">
+                <div class="row"><span>DATE:</span><span>${new Date(lastOrder.createdAt).toLocaleString()}</span></div>
+                <div class="row"><span>ORDER:</span><span class="uppercase">${lastOrder.orderNumber}</span></div>
+                <div class="row"><span>CASHIER:</span><span class="uppercase">${lastOrder.user?.name || session?.user?.name || "System"}</span></div>
+            </div>
+            <div class="dashed"></div>
+            <div style="margin-bottom: 10px;">
+        `;
+
+        lastOrder.items.forEach((item: any) => {
+            html += `
+                <div class="item-row italic">
+                    <div style="flex: 1;">
+                        <div>${item.name}</div>
+                        <div style="font-size: 10px;">${item.quantity} x ${formatNumber(item.price)}</div>
+                    </div>
+                    <span class="bold">${formatNumber(item.subtotal)}</span>
+                </div>
+            `;
+        });
+
+        html += `
+            </div>
+            <div class="dashed"></div>
+            <div style="margin-bottom: 10px;">
+                <div class="row"><span>SUBTOTAL:</span><span>${formatNumber(lastOrder.subtotal)}</span></div>
+                <div class="row"><span>TAX:</span><span>${formatNumber(lastOrder.tax)}</span></div>
+                <div class="total-row"><span>TOTAL:</span><span>${formatNaira(lastOrder.total)}</span></div>
+            </div>
+            <div class="dashed"></div>
+            <div style="margin-bottom: 10px; font-weight: bold; text-transform: uppercase;">
+                <div class="row"><span>PAYMENT TYPE:</span><span>${lastOrder.paymentType}</span></div>
+                <div class="row"><span>TENDERED:</span><span>${formatNumber(lastOrder.amountTendered)}</span></div>
+                <div class="row"><span>CHANGE:</span><span>${formatNumber(lastOrder.changeAmount)}</span></div>
+            </div>
+            <div class="dashed"></div>
+            <div class="footer">
+                <p>THANK YOU FOR YOUR PATRONAGE!</p>
+                <p style="font-size: 10px; opacity: 0.5;">Powered by Ktcstocks POS + Inventory</p>
+            </div>
+        `;
+
+        printWindow.document.write(html);
         printWindow.document.write('</body></html>');
         printWindow.document.close();
         printWindow.focus();
@@ -297,10 +539,27 @@ export function POSClient({ products, categories: initialCategories, session: se
                             <div>
                                 <h1 className="font-black text-xl text-gray-900 tracking-tight leading-none text-[22px]">Ktcstock Inventory</h1>
                                 <div className="flex items-center gap-2 mt-1.5 font-medium text-[12px]">
-                                    <span className="flex items-center gap-1 text-green-500">
-                                        <span className="w-1.5 h-1.5 rounded-full bg-green-500" />
-                                        Online
-                                    </span>
+                                    {isOnline ? (
+                                        <div className="flex items-center gap-2">
+                                            <span className="flex items-center gap-1 text-green-500">
+                                                <span className="w-1.5 h-1.5 rounded-full bg-green-500" />
+                                                Online
+                                            </span>
+                                            {pointsQueue.length > 0 && (
+                                                <button
+                                                    onClick={syncOfflineOrders}
+                                                    className="flex items-center gap-1 text-amber-500 hover:text-amber-600 transition-colors animate-pulse"
+                                                >
+                                                    • {pointsQueue.length} Pending Sync
+                                                </button>
+                                            )}
+                                        </div>
+                                    ) : (
+                                        <span className="flex items-center gap-1 text-red-500">
+                                            <span className="w-1.5 h-1.5 rounded-full bg-red-500" />
+                                            Offline {pointsQueue.length > 0 && `(${pointsQueue.length} queued)`}
+                                        </span>
+                                    )}
                                     <span className="text-gray-400">• Today, {new Date().toLocaleDateString()}</span>
                                 </div>
                             </div>
@@ -569,68 +828,125 @@ export function POSClient({ products, categories: initialCategories, session: se
                         <DialogTitle className="text-xl font-black text-gray-900 tracking-tight uppercase">Payment Details</DialogTitle>
                     </DialogHeader>
 
-                    <div className="p-8 space-y-8">
-                        {/* Payment Selection */}
+                    <div className="p-8 space-y-6">
+                        {/* Summary Cards */}
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="bg-gray-50 p-4 rounded-3xl">
+                                <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Total Due</p>
+                                <p className="text-2xl font-black text-gray-900">{formatNaira(total)}</p>
+                            </div>
+                            <div className={cn("p-4 rounded-3xl",
+                                Math.max(0, total - payments.reduce((acc, p) => acc + p.amount, 0)) === 0
+                                    ? "bg-green-50 text-green-600"
+                                    : "bg-red-50 text-red-500"
+                            )}>
+                                <p className="text-[10px] font-black uppercase tracking-widest opacity-70">Remaining</p>
+                                <p className="text-2xl font-black">
+                                    {formatNaira(Math.max(0, total - payments.reduce((acc, p) => acc + p.amount, 0)))}
+                                </p>
+                            </div>
+                        </div>
+
+                        {/* Payment Entry */}
                         <div className="space-y-4">
-                            <label className="text-[10px] font-black uppercase tracking-widest text-gray-400">Select Payment Method</label>
                             <div className="grid grid-cols-3 gap-3">
                                 {[
                                     { id: "CASH", icon: Utensils, label: "Cash" },
                                     { id: "CARD", icon: CreditCard, label: "Card" },
-                                    { id: "TRANSFER", icon: ArrowRightLeft, label: "Transfer" }
+                                    { id: "TRANSFER", icon: ArrowRightLeft, label: "Transfer" },
+                                    { id: "OTHER", icon: Info, label: "Other" }
                                 ].map(type => (
                                     <button
                                         key={type.id}
                                         onClick={() => setPaymentType(type.id as any)}
                                         className={cn(
-                                            "flex flex-col items-center justify-center gap-3 p-4 rounded-3xl border-2 transition-all",
+                                            "flex flex-col items-center justify-center gap-2 p-3 rounded-2xl border-2 transition-all",
                                             paymentType === type.id
                                                 ? "border-brand-500 bg-brand-50 text-brand-600 shadow-inner"
                                                 : "border-gray-50 hover:border-gray-200 text-gray-400"
                                         )}
                                     >
-                                        <type.icon className="w-6 h-6" />
+                                        <type.icon className="w-5 h-5" />
                                         <span className="text-[10px] font-black uppercase">{type.label}</span>
                                     </button>
                                 ))}
                             </div>
+
+                            <div className="flex gap-3">
+                                <div className="relative flex-1">
+                                    <span className="absolute left-4 top-1/2 -translate-y-1/2 text-xl font-black text-gray-300">₦</span>
+                                    <Input
+                                        type="number"
+                                        placeholder="0.00"
+                                        value={amountTendered}
+                                        onChange={(e) => setAmountTendered(e.target.value)}
+                                        onKeyDown={(e) => {
+                                            if (e.key === "Enter" && amountTendered) {
+                                                const amount = parseFloat(amountTendered);
+                                                if (amount > 0) {
+                                                    setPayments([...payments, { method: paymentType, amount }]);
+                                                    setAmountTendered("");
+                                                }
+                                            }
+                                        }}
+                                        className="h-14 pl-10 rounded-2xl bg-gray-50 border-none font-black text-2xl text-gray-900 focus:bg-white focus:ring-2 focus:ring-brand-100 transition-all"
+                                        autoFocus
+                                    />
+                                </div>
+                                <Button
+                                    onClick={() => {
+                                        const amount = parseFloat(amountTendered);
+                                        if (amount > 0) {
+                                            setPayments([...payments, { method: paymentType, amount }]);
+                                            setAmountTendered("");
+                                        }
+                                    }}
+                                    disabled={!amountTendered || parseFloat(amountTendered) <= 0}
+                                    className="h-14 w-14 rounded-2xl bg-gray-900 hover:bg-black text-white p-0 flex items-center justify-center"
+                                >
+                                    <Plus className="w-6 h-6" />
+                                </Button>
+                            </div>
                         </div>
 
-                        {/* Amount Input */}
-                        <div className="space-y-4">
-                            <div className="flex items-center justify-between">
-                                <label className="text-[10px] font-black uppercase tracking-widest text-gray-400">
-                                    {paymentType === "CASH" ? "Amount Tendered" : "Total to Charge"}
-                                </label>
-                                <span className="font-black text-xs text-brand-600 bg-brand-50 px-3 py-1 rounded-full">
-                                    Due: {formatNaira(total)}
-                                </span>
-                            </div>
-                            <div className="relative">
-                                <span className="absolute left-6 top-1/2 -translate-y-1/2 text-2xl font-black text-gray-300">₦</span>
-                                <Input
-                                    type="number"
-                                    placeholder="0.00"
-                                    value={amountTendered}
-                                    onChange={(e) => setAmountTendered(e.target.value)}
-                                    className="h-20 pl-14 pr-8 rounded-3xl bg-gray-50 border-none font-black text-4xl text-gray-900 focus:bg-white focus:ring-4 focus:ring-brand-100 transition-all"
-                                    autoFocus
-                                />
-                            </div>
+                        {/* Added Payments List */}
+                        <div className="space-y-2 max-h-40 overflow-y-auto">
+                            {payments.map((payment, idx) => (
+                                <div key={idx} className="flex items-center justify-between bg-white border border-gray-100 p-3 rounded-xl">
+                                    <div className="flex items-center gap-3">
+                                        <div className="w-8 h-8 rounded-lg bg-gray-50 flex items-center justify-center text-gray-500">
+                                            {payment.method === "CASH" && <Utensils className="w-4 h-4" />}
+                                            {payment.method === "CARD" && <CreditCard className="w-4 h-4" />}
+                                            {payment.method === "TRANSFER" && <ArrowRightLeft className="w-4 h-4" />}
+                                            {payment.method === "OTHER" && <Info className="w-4 h-4" />}
+                                        </div>
+                                        <div>
+                                            <p className="font-bold text-gray-900 text-sm">{formatNaira(payment.amount)}</p>
+                                            <p className="text-[10px] font-black uppercase text-gray-400">{payment.method}</p>
+                                        </div>
+                                    </div>
+                                    <button
+                                        onClick={() => setPayments(payments.filter((_, i) => i !== idx))}
+                                        className="text-gray-300 hover:text-red-500 transition-colors p-2"
+                                    >
+                                        <X className="w-4 h-4" />
+                                    </button>
+                                </div>
+                            ))}
+                            {payments.length === 0 && (
+                                <div className="text-center py-6 text-gray-300 text-xs font-bold uppercase tracking-widest">
+                                    No payments added
+                                </div>
+                            )}
                         </div>
 
-                        {/* Change Calculator */}
-                        {paymentType === "CASH" && amountTendered && (
-                            <div className="bg-gray-50 p-6 rounded-3xl flex items-center justify-between">
-                                <div>
-                                    <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Change Due</p>
-                                    <p className={cn("text-3xl font-black", changeDue > 0 ? "text-green-600" : "text-gray-300")}>
-                                        {formatNaira(changeDue)}
-                                    </p>
-                                </div>
-                                <div className={cn("w-14 h-14 rounded-2xl flex items-center justify-center", changeDue > 0 ? "bg-green-100 text-green-600" : "bg-gray-100 text-gray-400")}>
-                                    <ArrowLeft className="w-8 h-8 rotate-180" />
-                                </div>
+                        {/* Change Display (Only if Total Paid > Total Due) */}
+                        {payments.reduce((acc, p) => acc + p.amount, 0) > total && (
+                            <div className="bg-gray-50 p-4 rounded-2xl flex items-center justify-between">
+                                <p className="text-[10px] font-black uppercase tracking-widest text-gray-400">Change Due</p>
+                                <p className="text-xl font-black text-green-600">
+                                    {formatNaira(payments.reduce((acc, p) => acc + p.amount, 0) - total)}
+                                </p>
                             </div>
                         )}
                     </div>
@@ -645,7 +961,7 @@ export function POSClient({ products, categories: initialCategories, session: se
                         </Button>
                         <Button
                             onClick={() => handleSaveOrder("COMPLETED")}
-                            disabled={isProcessing || (paymentType === "CASH" && (!amountTendered || changeDue < 0))}
+                            disabled={isProcessing || payments.reduce((acc, p) => acc + p.amount, 0) < total}
                             className="h-14 px-12 rounded-2xl bg-brand-500 hover:bg-brand-600 text-white font-black text-lg shadow-xl shadow-brand-500/20 transition-all min-w-[200px]"
                         >
                             {isProcessing ? "Processing..." : `Complete ${formatNaira(total)}`}
@@ -657,6 +973,7 @@ export function POSClient({ products, categories: initialCategories, session: se
             {/* Receipt Modal (Thermal Style) */}
             <Dialog open={isReceiptOpen} onOpenChange={setIsReceiptOpen}>
                 <DialogContent className="max-w-[400px] p-0 overflow-hidden bg-white rounded-[40px] border-none">
+                    <DialogTitle className="sr-only">Sale Receipt</DialogTitle>
                     <div className="p-10 flex flex-col items-center">
                         <div className="w-16 h-16 rounded-full bg-green-50 flex items-center justify-center text-green-500 mb-6">
                             <CheckCircle2 className="w-10 h-10" />
@@ -774,10 +1091,20 @@ export function POSClient({ products, categories: initialCategories, session: se
                     </DialogHeader>
                     <div className="p-8 space-y-6">
                         <div className="space-y-4">
-                            <label className="text-[10px] font-black uppercase tracking-widest text-gray-400">Customer Name or Order Reference</label>
+                            <label className="text-[10px] font-black uppercase tracking-widest text-gray-400">Table Number (Optional)</label>
                             <Input
                                 type="text"
-                                placeholder="e.g., Table 4, John Doe, Takeout..."
+                                placeholder="e.g. 5"
+                                value={tableNumber}
+                                onChange={(e) => setTableNumber(e.target.value)}
+                                className="h-16 px-6 rounded-2xl bg-gray-50 border-none font-bold text-xl text-gray-900 focus:bg-white focus:ring-4 focus:ring-brand-100 transition-all"
+                            />
+                        </div>
+                        <div className="space-y-4">
+                            <label className="text-[10px] font-black uppercase tracking-widest text-gray-400">Customer Name / Reference</label>
+                            <Input
+                                type="text"
+                                placeholder="e.g., John Doe, Takeout..."
                                 value={customerName}
                                 onChange={(e) => setCustomerName(e.target.value)}
                                 className="h-16 px-6 rounded-2xl bg-gray-50 border-none font-bold text-xl text-gray-900 focus:bg-white focus:ring-4 focus:ring-brand-100 transition-all"
@@ -795,7 +1122,7 @@ export function POSClient({ products, categories: initialCategories, session: se
                         </Button>
                         <Button
                             onClick={() => handleSaveOrder("PENDING")}
-                            disabled={isProcessing || !customerName}
+                            disabled={isProcessing || (!customerName && !tableNumber)}
                             className="h-14 px-12 rounded-2xl bg-brand-500 hover:bg-brand-600 text-white font-black text-lg shadow-xl shadow-brand-500/20 transition-all min-w-[200px]"
                         >
                             {isProcessing ? "Saving..." : "Hold Order"}
@@ -826,8 +1153,25 @@ export function POSClient({ products, categories: initialCategories, session: se
                                                 {order.orderNumber}
                                             </span>
                                         </div>
-                                        <p className="text-xs font-bold text-gray-400">
-                                            {order.items.length} Items • {formatNaira(order.total)} • {new Date(order.createdAt).toLocaleTimeString()}
+                                        <p className="text-xs font-bold text-gray-400 flex items-center gap-2">
+                                            <span>{order.items.length} Items • {formatNaira(order.total)} • {new Date(order.createdAt).toLocaleTimeString()}</span>
+                                            {order.user?.name ? (
+                                                <span className="bg-orange-100 text-orange-600 px-2 py-0.5 rounded-full text-[10px] uppercase tracking-wide">
+                                                    Held by {order.user.name}
+                                                </span>
+                                            ) : (
+                                                <span className="bg-orange-50 text-orange-600 px-2 py-0.5 rounded-full text-[10px] uppercase tracking-wide font-black italic">
+                                                    Visitor Order
+                                                </span>
+                                            )}
+                                            {order.notes && (
+                                                <button
+                                                    onClick={() => setSelectedNote(order.notes)}
+                                                    className="flex items-center gap-1 text-[10px] font-black text-brand-600 bg-brand-50 px-2.5 py-1 rounded-lg hover:bg-brand-100 transition-colors"
+                                                >
+                                                    📝 View Note
+                                                </button>
+                                            )}
                                         </p>
                                     </div>
                                     <div className="flex items-center gap-2">
@@ -863,6 +1207,29 @@ export function POSClient({ products, categories: initialCategories, session: se
                             Close
                         </Button>
                     </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            {/* Note View Modal */}
+            <Dialog open={!!selectedNote} onOpenChange={(open) => !open && setSelectedNote(null)}>
+                <DialogContent className="max-w-md p-0 overflow-hidden bg-white rounded-[40px] border-none shadow-2xl z-[100]">
+                    <DialogHeader className="p-8 border-b border-gray-50 bg-gray-50/30">
+                        <DialogTitle className="text-xl font-black text-gray-900 tracking-tight uppercase">Order Notes</DialogTitle>
+                        <DialogDescription className="sr-only">Viewing customer notes for this order.</DialogDescription>
+                    </DialogHeader>
+                    <div className="p-8">
+                        <div className="bg-gray-50 p-6 rounded-3xl border border-gray-100 italic text-gray-600 font-medium">
+                            "{selectedNote}"
+                        </div>
+                    </div>
+                    <div className="p-6 border-t border-gray-50 flex justify-center">
+                        <Button
+                            onClick={() => setSelectedNote(null)}
+                            className="bg-gray-900 text-white font-black h-12 px-8 rounded-2xl"
+                        >
+                            Got it
+                        </Button>
+                    </div>
                 </DialogContent>
             </Dialog>
         </div>

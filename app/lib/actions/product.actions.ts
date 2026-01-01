@@ -10,9 +10,9 @@ const ProductSchema = z.object({
   sku: z.string().optional(),
   categoryId: z.string().min(1, "Category is required"),
   description: z.string().optional(),
-  price: z.number().min(0, "Price must be positive"),
+  price: z.number().min(0, "Price must be a positive number"),
   costPrice: z.number().optional(),
-  initialStock: z.number().min(0).default(0),
+  initialStock: z.number().min(0, "Stock cannot be negative").optional(),
   lowStockAlert: z.number().optional(),
   stockUnit: z.string().optional(),
   trackInventory: z.boolean().default(true),
@@ -27,11 +27,40 @@ const ProductSchema = z.object({
   reorderQuantity: z.number().optional(),
   expiryTracking: z.boolean().default(false),
   isSeasonal: z.boolean().default(false),
+  isFoodItem: z.boolean().default(false),
   status: z.boolean().default(true),
+  showOnMenu: z.boolean().default(false),
+  menuCategory: z.string().optional(),
+  menuOrder: z.number().default(999),
 });
 
-export async function getProducts(params?: { categoryId?: string; search?: string }) {
+// Helper function to generate unique SKU
+async function generateUniqueSKU(): Promise<string> {
+  const timestamp = Date.now().toString(36).toUpperCase();
+  const random = Math.random().toString(36).substring(2, 6).toUpperCase();
+  const sku = `PROD-${timestamp}-${random}`;
+  
+  // Check if SKU already exists (very unlikely but just in case)
+  const existing = await prisma.product.findUnique({ where: { sku } });
+  if (existing) {
+    // Recursively try again if collision (extremely rare)
+    return generateUniqueSKU();
+  }
+  
+  return sku;
+}
+
+export async function getProducts(params?: { 
+  categoryId?: string; 
+  search?: string;
+  page?: number;
+  pageSize?: number;
+}) {
   try {
+    const page = params?.page || 1;
+    const pageSize = params?.pageSize || 12;
+    const skip = (page - 1) * pageSize;
+
     const where: any = {};
     if (params?.categoryId) where.categoryId = params.categoryId;
     if (params?.search) {
@@ -41,52 +70,98 @@ export async function getProducts(params?: { categoryId?: string; search?: strin
       ];
     }
 
-    return await prisma.product.findMany({
-      where,
-      include: { category: true },
-      orderBy: { name: "asc" },
-    });
+    const [products, totalCount] = await Promise.all([
+      prisma.product.findMany({
+        where,
+        include: { category: true },
+        orderBy: { name: "asc" },
+        skip,
+        take: pageSize,
+      }),
+      prisma.product.count({ where }),
+    ]);
+
+    return {
+      success: true,
+      products,
+      totalCount,
+      page,
+      pageSize,
+    };
   } catch (error) {
     console.error("Failed to fetch products:", error);
-    return [];
+    return {
+      products: [],
+      totalCount: 0,
+      page: 1,
+      pageSize: 12,
+    };
   }
 }
 
 export async function createProduct(data: z.infer<typeof ProductSchema>) {
   const session = await auth();
   if (!session || (session.user.role !== "ADMIN" && session.user.role !== "MANAGER")) {
-    throw new Error("Unauthorized");
+    return { success: false, error: "Unauthorized: Only admins and managers can create products" };
   }
 
-  const validated = ProductSchema.parse(data);
-
   try {
+    // Validate the data
+    const validated = ProductSchema.parse(data);
+
+    // Auto-generate SKU if not provided
+    const sku = validated.sku && validated.sku.trim() !== "" 
+      ? validated.sku 
+      : await generateUniqueSKU();
+
+    // Auto-disable stock tracking for food items
+    const trackInventory = validated.isFoodItem ? false : validated.trackInventory;
+    const stockValue = validated.isFoodItem ? 0 : (validated.initialStock ?? 0);
+    
     const cleanData = { 
       ...validated,
+      sku,
       supplierId: validated.supplierId || null,
-      stock: validated.initialStock
+      trackInventory,
+      stock: stockValue,
+      initialStock: stockValue,
     };
 
     const product = await prisma.product.create({
       data: cleanData as any,
     });
+    
     revalidatePath("/inventory");
     revalidatePath("/pos");
     return { success: true, product };
-  } catch (error) {
+  } catch (error: any) {
     console.error("Failed to create product:", error);
-    return { success: false, error: "Failed to create product" };
+    
+    // Handle Zod validation errors
+    if (error.name === "ZodError") {
+      const fieldErrors = error.errors.map((e: any) => `${e.path.join(".")}: ${e.message}`).join(", ");
+      return { success: false, error: `Validation failed: ${fieldErrors}` };
+    }
+    
+    // Handle Prisma unique constraint errors
+    if (error.code === "P2002") {
+      const field = error.meta?.target?.[0] || "field";
+      return { success: false, error: `A product with this ${field} already exists` };
+    }
+    
+    // Generic error
+    return { success: false, error: error.message || "Failed to create product. Please try again." };
   }
 }
 
 export async function updateProduct(id: string, data: Partial<z.infer<typeof ProductSchema>>) {
   const session = await auth();
   if (!session || (session.user.role !== "ADMIN" && session.user.role !== "MANAGER")) {
-    throw new Error("Unauthorized");
+    return { success: false, error: "Unauthorized: Only admins and managers can update products" };
   }
 
   try {
-    // Clean up empty strings for optional relations
+    // Reading file firsty strings for optional relations
     const cleanData = { ...data };
     if (cleanData.supplierId === "") cleanData.supplierId = null as any;
     if (cleanData.categoryId === "") delete (cleanData as any).categoryId; // Category is required, don't allow unsetting
@@ -95,30 +170,55 @@ export async function updateProduct(id: string, data: Partial<z.infer<typeof Pro
       where: { id },
       data: cleanData as any,
     });
+    
     revalidatePath("/inventory");
     revalidatePath("/pos");
     return { success: true, product };
-  } catch (error) {
+  } catch (error: any) {
     console.error("Failed to update product:", error);
-    return { success: false, error: "Failed to update product" };
+    
+    // Handle Prisma unique constraint errors
+    if (error.code === "P2002") {
+      const field = error.meta?.target?.[0] || "field";
+      return { success: false, error: `A product with this ${field} already exists` };
+    }
+    
+    // Handle not found errors
+    if (error.code === "P2025") {
+      return { success: false, error: "Product not found" };
+    }
+    
+    return { success: false, error: error.message || "Failed to update product. Please try again." };
   }
 }
 
 export async function deleteProduct(id: string) {
   const session = await auth();
   if (!session || (session.user.role !== "ADMIN" && session.user.role !== "MANAGER")) {
-    throw new Error("Unauthorized");
+    return { success: false, error: "Unauthorized: Only admins and managers can delete products" };
   }
 
   try {
     await prisma.product.delete({
       where: { id },
     });
+    
     revalidatePath("/inventory");
     revalidatePath("/pos");
     return { success: true };
-  } catch (error) {
+  } catch (error: any) {
     console.error("Failed to delete product:", error);
-    return { success: false, error: "Failed to delete product" };
+    
+    // Handle not found errors
+    if (error.code === "P2025") {
+      return { success: false, error: "Product not found" };
+    }
+    
+    // Handle foreign key constraint errors (product is referenced elsewhere)
+    if (error.code === "P2003") {
+      return { success: false, error: "Cannot delete product: it has associated orders or inventory movements" };
+    }
+    
+    return { success: false, error: error.message || "Failed to delete product. Please try again." };
   }
 }

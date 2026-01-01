@@ -136,9 +136,15 @@ model Product {
   reorderQuantity Int?
   expiryTracking  Boolean   @default(false)
   isSeasonal      Boolean   @default(false)
+  isFoodItem      Boolean   @default(false) // Food items don't track inventory
   startDate       DateTime?
   endDate         DateTime?
   status          Boolean   @default(true) // Active/Inactive
+
+  // Menu System
+  showOnMenu   Boolean @default(false)
+  menuCategory String?
+  menuOrder    Int     @default(999)
 
   variants       ProductVariant[]
   modifierGroups ModifierGroup[]
@@ -233,8 +239,21 @@ model Order {
   customerName String?
   notes        String?
 
+  tableNumber String?
+  payments    Payment[]
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+model Payment {
+  id        String      @id @default(cuid())
+  orderId   String
+  order     Order       @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  amount    Decimal     @db.Decimal(10, 2)
+  method    PaymentType
+  reference String?
+  createdAt DateTime    @default(now())
 }
 
 model OrderItem {

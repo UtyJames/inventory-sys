@@ -9,23 +9,29 @@ import { InventoryClient } from "./inventory-client";
 export default async function InventoryPage({
     searchParams,
 }: {
-    searchParams: Promise<{ category?: string; q?: string }>;
+    searchParams: Promise<{ category?: string; search?: string; page?: string }>;
 }) {
     const session = await auth();
     if (!session) redirect("/auth/sign-in");
-
-    const resolvedSearchParams = await searchParams;
 
     // Restrict to Admin/Manager
     if (session.user.role === "CASHIER") {
         redirect("/");
     }
 
+    const resolvedSearchParams = await searchParams;
+    const page = Number(resolvedSearchParams.page) || 1;
+
     const rawCategories = await getCategories();
-    const rawProducts = await getProducts({
+    const productResult = await getProducts({
         categoryId: resolvedSearchParams.category,
-        search: resolvedSearchParams.q,
+        search: resolvedSearchParams.search,
+        page: page,
+        pageSize: 12,
     });
+
+    const rawProducts = productResult.products;
+    const totalCount = productResult.totalCount;
 
     // Deep serialize both products and categories to handle Decimals, Dates, and nested objects for Next.js 15
     const products = JSON.parse(JSON.stringify(rawProducts || [])).map((p: any) => ({
@@ -45,6 +51,9 @@ export default async function InventoryPage({
                 initialProducts={products}
                 categories={categories}
                 user={session.user}
+                totalProducts={totalCount}
+                currentPage={page}
+                pageSize={12}
             />
         </div>
     );
